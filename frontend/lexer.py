@@ -6,93 +6,45 @@
 
 import re
 
-from errors import LexException
-from location import Location
+from utility.errors import LexException
+from utility.errors import DEBUG
+from utility.location import Location
 from tok import *
 
-__opchars = r"[!#%&*+\-/:<=>?@\\^|~]"
+__opchars = r"[*+\-/<=>]"
 
 __expressions = [
   (r"\r?\n", NEWLINE),
   (r"[\t ]+", SPACE),
-  (r"//[^\r\n]*", COMMENT),
+  (r"#[^\r\n]*", COMMENT),
 
-  (r"\[",  RESERVED),
-  (r"\]",  RESERVED),
   (r"\(",  RESERVED),
   (r"\)",  RESERVED),
-  (r"\{",  RESERVED),
-  (r"\}",  RESERVED),
-  (r"<:",  RESERVED),
-  (r">:",  RESERVED),
-  (r"=>",  RESERVED),
-  (r"_",   RESERVED),
-  (r"\.",  RESERVED),
-  (r",",   RESERVED),
-  (r":",   RESERVED),
-  (r";",   RESERVED),
-  (r"=",   RESERVED),
 
-  (r"var", RESERVED),
-  (r"let", RESERVED),
-  (r"def", RESERVED),
-  (r"class", RESERVED),
-  (r"trait", RESERVED),
-  (r"arrayelements", RESERVED),
-  (r"import", RESERVED),
-  (r"as", RESERVED),
-  (r"if", RESERVED),
-  (r"else", RESERVED),
-  (r"while", RESERVED),
-  (r"break", RESERVED),
-  (r"continue", RESERVED),
-  (r"case", RESERVED),
-  (r"match", RESERVED),
-  (r"throw", RESERVED),
-  (r"try", RESERVED),
-  (r"catch", RESERVED),
-  (r"finally", RESERVED),
-  (r"new", RESERVED),
-  (r"lambda", RESERVED),
-  (r"return", RESERVED),
-  (r"unit", RESERVED),
-  (r"i8", RESERVED),
-  (r"i16", RESERVED),
-  (r"i32", RESERVED),
-  (r"i64", RESERVED),
-  (r"f32", RESERVED),
-  (r"f64", RESERVED),
-  (r"boolean", RESERVED),
-  (r"forsome", RESERVED),
-  (r"true", RESERVED),
-  (r"false", RESERVED),
-  (r"this", RESERVED),
-  (r"super", RESERVED),
-  (r"null", RESERVED),
-
-  (r"abstract", ATTRIB),
-  (r"final", ATTRIB),
-  (r"public", ATTRIB),
-  (r"protected", ATTRIB),
-  (r"private", ATTRIB),
-  (r"static", ATTRIB),
-  (r"override", ATTRIB),
-  (r"native", ATTRIB),
+  (r"function", KEYWORD),
+  (r"end", KEYWORD),
+  (r"int", KEYWORD), # optional
+  (r"double", KEYWORD), # optional
+  (r"if", KEYWORD),
+  (r"then", KEYWORD),
+  (r"else", KEYWORD),
+  (r"elseif", KEYWORD),
+  (r"return", KEYWORD), # optional
 
   (r"[+-]?[0-9]+(?:i[0-9]+)?", INTEGER),
   (r"[+-]?0[xX][0-9A-Fa-f]+(?:i[0-9]+)?", INTEGER),
-  (r"[+-]?0[bB][01]+(?:i[0-9]+)?", INTEGER),
 
-  (r"[+-]?[0-9]+\.[0-9]*(?:[Ee][+-]?[0-9]+)?(?:f[0-9]+)?", FLOAT),
-  (r"[+-]?\.[0-9]+(?:[Ee][+-]?[0-9]+)?(?:f[0-9]+)?", FLOAT),
-  (r"[+-]?[0-9]+[Ee][+-]?[0-9]+(?:f[0-9]+)?", FLOAT),
-  (r"[+-]?[0-9]+f[0-9]+", FLOAT),
+  (r"[+-]?[0-9]+\.[0-9]*(?:[Ee][+-]?[0-9]+)?(?:f[0-9]+)?", DOUBLE),
+  (r"[+-]?\.[0-9]+(?:[Ee][+-]?[0-9]+)?(?:f[0-9]+)?", DOUBLE),
+  (r"[+-]?[0-9]+[Ee][+-]?[0-9]+(?:f[0-9]+)?", DOUBLE),
+  (r"[+-]?[0-9]+f[0-9]+", DOUBLE),
 
-  (r'"(?:\\"|[^"])*"', STRING),
+  (r"[*+\-/<=>]", OPERATOR),
+  (r"==", OPERATOR),
+  (r"<=", OPERATOR),
+  (r">=", OPERATOR),
 
-  (r"[!#%&*+\-/:<=>?@\\^|~]+", OPERATOR),
   (r"[A-Za-z_][A-Za-z0-9_-]*", SYMBOL),
-  (r"`(?:\\`|[^`])*`", SYMBOL),
 ]
 __expressions = [(re.compile(expr[0]), expr[1]) for expr in __expressions]
 
@@ -118,6 +70,7 @@ def lex(filename, source):
         if not token:
             location = Location(filename, line, column, line, column + 1)
             raise LexException(location, "illegal character: %s" % source[pos:pos+1])
+        DEBUG(token)
         tokens.append(token)
         if token.tag is NEWLINE:
             line += 1

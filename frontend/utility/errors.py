@@ -40,3 +40,9 @@ class TypeException(CompileException):
 
 class SemanticException(CompileException):
     kind = "semantic"
+
+def DEBUG(arg, LEVEL=1):
+    LEVEL_DBG = 0
+    msg_str = str(arg)
+    if LEVEL > LEVEL_DBG:
+        print msg_str

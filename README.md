@@ -8,4 +8,5 @@ High Level Objectives:
 
 Design Decisions:
 1. Butterfly is for High Performance Computing, so the first design is to cover a reduced set of C language feature, i.e.,  "Scripted C"
+2. reflection and introspection (like Julia) *must* be supported
 0. More features will be added when necessary.
