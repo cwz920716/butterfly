@@ -8,7 +8,7 @@
 // Lexer
 //===----------------------------------------------------------------------===//
 
-static std::string token_desc[] = {
+std::string token_desc[] = {
                 "tok_error",
                 "tok_eof",
                 "tok_define",
@@ -179,6 +179,7 @@ token_type getToken(const char *text, int *len) {
   return ret;
 }
 
+#ifdef _LEXER_MAIN_
 int main(int argc, char **argv) {
   const char *test_scm = "(sum-of-squares (+ 5 1) (* 5 2))\n(+ (* 3 5) (- 10 6))\n(define (abs x) (if (< x 0) (- x) x))";
   Lexer lex(test_scm);
@@ -191,4 +192,4 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-
+#endif

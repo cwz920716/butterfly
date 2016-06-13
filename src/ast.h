@@ -7,6 +7,7 @@
 class ExprAST {
 public:
   virtual ~ExprAST() {}
+  virtual void print() {}
 };
 
 /// IntExprAST - Expression class for numeric literals like "1.0".
@@ -15,6 +16,7 @@ class IntExprAST : public ExprAST {
 
 public:
   IntExprAST(int Val) : Val(Val) {}
+  void print() { std::cout << "( Int=" << Val << ")" << std::endl; }
 };
 
 /// VariableExprAST - Expression class for referencing a variable, like "a".
@@ -23,6 +25,7 @@ class VariableExprAST : public ExprAST {
 
 public:
   VariableExprAST(const std::string &Name) : Name(Name) {}
+  void print() { std::cout << "( Var=" << Name << ")" << std::endl; }
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -34,6 +37,32 @@ public:
   BinaryExprAST(token_type op, std::unique_ptr<ExprAST> LHS,
                 std::unique_ptr<ExprAST> RHS)
     : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
+
+  void print() { 
+    std::cout << "( Op=" << token_desc[Op] << ", "; 
+    LHS->print(); std::cout << ", "; 
+    RHS->print(); std::cout << ", ";
+    std::cout << ")" << std::endl;
+  }
+};
+
+/// IfExprAST - Expression class for a if statement.
+class IfExprAST : public ExprAST {
+  std::unique_ptr<ExprAST> Pred, Then, Else;
+
+public:
+  IfExprAST(std::unique_ptr<ExprAST> _pred,
+            std::unique_ptr<ExprAST> _then, 
+            std::unique_ptr<ExprAST> _else)
+    : Pred(std::move(_pred)), Then(std::move(_then)), Else(std::move(_else)) {}
+
+  void print() { 
+    std::cout << "( If "; 
+    Pred->print(); std::cout << ", "; 
+    Then->print(); std::cout << ", "; 
+    Else->print(); std::cout << ", ";
+    std::cout << ")" << std::endl;
+  }
 };
 
 /// CallExprAST - Expression class for function calls.

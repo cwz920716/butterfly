@@ -32,6 +32,8 @@ enum token_type {
   tok_newline
 };
 
+extern std::string token_desc[];
+
 struct Token {
   token_type type;
   std::string literal;
