@@ -2,45 +2,13 @@
 #include <string>
 #include <string.h>
 #include <vector>
-
-using namespace std;
+#include "common.h"
 
 //===----------------------------------------------------------------------===//
 // Lexer
 //===----------------------------------------------------------------------===//
 
-// The lexer returns tokens [0-255] if it is an unknown character, otherwise one
-// of these for known things.
-enum token_type {
-  tok_error,
-  tok_eof,
-
-  // commands
-  tok_define,
-  tok_lambda,
-  tok_if,
-
-  // operators
-  tok_open,
-  tok_close,
-  tok_add,
-  tok_sub,
-  tok_mul,
-  tok_div,
-  tok_gt,
-  tok_lt,
-  tok_eq,
-
-  // primitive types
-  tok_symbol,
-  tok_integer,
-
-  // whitespaces
-  tok_space,
-  tok_newline
-};
-
-static string token_desc[] = {
+static std::string token_desc[] = {
                 "tok_error",
                 "tok_eof",
                 "tok_define",
@@ -60,11 +28,6 @@ static string token_desc[] = {
                 "tok_space",
                 "tok_newline",
               }; 
-
-struct Token {
-  token_type type;
-  string literal;
-};
 
 bool isWhitespace(char ch) {
   return ch == '\t' || ch == ' ' || ch == '\v' || ch == '\f' || ch == '\r';
@@ -217,22 +180,15 @@ token_type getToken(const char *text, int *len) {
 }
 
 int main(int argc, char **argv) {
-  char *test_scm = "(sum-of-squares (+ 5 1) (* 5 2))\n(+ (* 3 5) (- 10 6))\n(define (abs x) (if (< x 0) (- x) x))";
-  token_type tok;
-  int n = 0;
+  const char *test_scm = "(sum-of-squares (+ 5 1) (* 5 2))\n(+ (* 3 5) (- 10 6))\n(define (abs x) (if (< x 0) (- x) x))";
+  Lexer lex(test_scm);
+  Token cur;
 
-  char *src = test_scm;
-  int next = 0;
   do {
-    next = 0;
-    tok = getToken(src, &next);
-    string lit(src, next);
-    cout << token_desc[tok] << ":\t" << lit << endl;
-    src += next;
-  } while (tok != tok_eof && tok != tok_error);
+    cur = lex.getNextToken();
+    std::cout << token_desc[cur.type] << ":\t" << cur.literal << std::endl;
+  } while (cur.type != tok_eof && cur.type != tok_eof);
 
-  if (tok == tok_error) {
-    cout << src << endl;
-  }
+  return 0;
 }
 
