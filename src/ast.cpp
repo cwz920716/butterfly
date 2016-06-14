@@ -21,7 +21,7 @@
 /// CurTok/getNextToken - Provide a simple token buffer.  CurTok is the current
 /// token the parser is looking at.  getNextToken reads another token from the
 /// lexer and updates CurTok with its results.
-const char *test_scm = "(+ 1 2)";
+const char *test_scm = "(define (f x) 1)\n(f 1 2 3)";
 Lexer lex(test_scm);
 static Token CurTok;
 static Token getNextToken() { return CurTok = lex.getNextToken(); }
@@ -74,6 +74,8 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
   }
 }
 
+static std::unique_ptr<ExprAST> ParseExpression();
+
 static std::unique_ptr<ExprAST> ParseBinOpExpr() {
   token_type op = CurTok.type;
   getNextToken(); // eat op
@@ -85,7 +87,7 @@ static std::unique_ptr<ExprAST> ParseBinOpExpr() {
   return llvm::make_unique<BinaryExprAST>(op, std::move(LHS), std::move(RHS));
 }
 
-static std::unique_ptr<ExprAST> ParseIfOpExpr() {
+static std::unique_ptr<ExprAST> ParseIfExpr() {
   getNextToken(); // eat if
   auto Pred = ParseExpression();
   if (!Pred) return LogError("unknown If.Pred when expecting an expr");
@@ -97,10 +99,43 @@ static std::unique_ptr<ExprAST> ParseIfOpExpr() {
   return llvm::make_unique<IfExprAST>(std::move(Pred), std::move(Then), std::move(Else));
 }
 
+/// Definition
+///   ::= id expr
+///   ::= (id formals) body
+/// for now, body is a single expression
+static std::unique_ptr<ExprAST> ParseDefExpr() {
+  getNextToken(); // eat define
+  if (CurTok.type == tok_open) {
+    // function definition
+    getNextToken(); // eat open
+    if (!expectToken(tok_symbol)) return LogError("non ')' at end of expression");
+    std::string FunctName = CurTok.literal;
+    getNextToken(); // eat fname
+    std::vector<std::string> formals;
+    while (CurTok.type != tok_close) {
+      if (!expectToken(tok_symbol)) return LogError("non ')' at end of expression");
+      formals.push_back(CurTok.literal);
+      getNextToken(); // eat formal;
+    }
+    getNextToken(); // eat close;
+    auto proto = llvm::make_unique<PrototypeAST>(FunctName, formals);
+    auto body= ParseExpression(); // parse body
+    return llvm::make_unique<FunctionAST>(std::move(proto), std::move(body));
+  } else {
+    // variable definition
+    std::string IdName = CurTok.literal;
+    getNextToken(); // eat identifier
+    auto Result = ParseExpression();
+    return llvm::make_unique<VarDefinitionExprAST>(IdName, std::move(Result));
+  }
+}
+
 /// list
 ///   ::= BinOp expr1 expr2
 ///   ::= if expr0 expr1 expr2
-static std::unique_ptr<ExprAST> ParsePrimary() {
+///   ::= define Definition
+///   ::= expr*
+static std::unique_ptr<ExprAST> ParseList() {
   switch (CurTok.type) {
   case tok_add:
   case tok_sub:
@@ -112,8 +147,21 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
     return ParseBinOpExpr();
   case tok_if:
     return ParseIfExpr();
+  case tok_define:
+    return ParseDefExpr();
+  case tok_close:
+    return llvm::make_unique<VariableExprAST>(std::string("nil"));
   default:
-    return LogError("unknown token when expecting a list");
+    // application expr
+    auto Callee = ParseExpression();
+    std::vector<std::unique_ptr<ExprAST>> Args;
+    while (CurTok.type != tok_close) {
+      if (auto Arg = ParseExpression())
+        Args.push_back(std::move(Arg));
+      else
+        return LogError("non expr as arg at proc application");
+    }
+    return llvm::make_unique<CallExprAST>(std::move(Callee), std::move(Args));
   }
 }
 
@@ -123,14 +171,13 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
 ///   ::= ( list )
 ///
 static std::unique_ptr<ExprAST> ParseExpression() {
-  switch (CurTok.type) {
-  case tok_open:
+  if (CurTok.type == tok_open) {
     getNextToken(); // eat open
     auto Result = ParseList();
     if (!expectToken(tok_close)) return LogError("non ')' at end of expression");
     getNextToken(); // eat close
-    return std::move(Result);
-  default:
+    return Result;
+  } else {
     return ParsePrimary();
   }
 }
@@ -140,6 +187,7 @@ static void HandleCommand() {
   if (auto ast = ParseExpression()) {
     // dump AST
     ast->print();
+    std::cout << std::endl;
   } else {
     // Skip token for error recovery.
     getNextToken();
@@ -149,7 +197,7 @@ static void HandleCommand() {
 /// top ::= definition | external | expression | ';'
 static void MainLoop() {
   while (true) {
-    switch (CurTok) {
+    switch (CurTok.type) {
     case tok_eof:
       return;
     default:

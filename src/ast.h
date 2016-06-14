@@ -16,7 +16,7 @@ class IntExprAST : public ExprAST {
 
 public:
   IntExprAST(int Val) : Val(Val) {}
-  void print() { std::cout << "( Int=" << Val << ")" << std::endl; }
+  void print() { std::cout << "(Int=" << Val << ")"; }
 };
 
 /// VariableExprAST - Expression class for referencing a variable, like "a".
@@ -25,7 +25,21 @@ class VariableExprAST : public ExprAST {
 
 public:
   VariableExprAST(const std::string &Name) : Name(Name) {}
-  void print() { std::cout << "( Var=" << Name << ")" << std::endl; }
+  void print() { std::cout << "(Var=" << Name << ")"; }
+};
+
+/// VarDefinitionExprAST - Expression class for referencing a variable, like "a".
+class VarDefinitionExprAST : public ExprAST {
+  std::string Name;
+  std::unique_ptr<ExprAST> Value;
+
+public:
+  VarDefinitionExprAST(const std::string &Name, std::unique_ptr<ExprAST> value) : Name(Name), Value(std::move(value)) {}
+  void print() { 
+    std::cout << "(var " << Name << " <- ";
+    Value->print();
+    std::cout << std::endl; 
+  }
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -39,9 +53,9 @@ public:
     : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
 
   void print() { 
-    std::cout << "( Op=" << token_desc[Op] << ", "; 
+    std::cout << "(Op=" << token_desc[Op] << ", "; 
     LHS->print(); std::cout << ", "; 
-    RHS->print(); std::cout << ", ";
+    RHS->print();
     std::cout << ")" << std::endl;
   }
 };
@@ -57,23 +71,32 @@ public:
     : Pred(std::move(_pred)), Then(std::move(_then)), Else(std::move(_else)) {}
 
   void print() { 
-    std::cout << "( If "; 
+    std::cout << "(If "; 
     Pred->print(); std::cout << ", "; 
     Then->print(); std::cout << ", "; 
-    Else->print(); std::cout << ", ";
+    Else->print();
     std::cout << ")" << std::endl;
   }
 };
 
 /// CallExprAST - Expression class for function calls.
 class CallExprAST : public ExprAST {
-  std::string Callee;
+  std::unique_ptr<ExprAST> Callee;
   std::vector<std::unique_ptr<ExprAST>> Args;
 
 public:
-  CallExprAST(const std::string &Callee,
+  CallExprAST(std::unique_ptr<ExprAST> Callee,
               std::vector<std::unique_ptr<ExprAST>> Args)
-    : Callee(Callee), Args(std::move(Args)) {}
+    : Callee(std::move(Callee)), Args(std::move(Args)) {}
+
+  void print() { 
+    std::cout << "(apply "; 
+    Callee->print(); std::cout << ": ";
+    for (auto &Arg : Args) {
+      Arg->print(); std::cout << ", "; 
+    }
+    std::cout << ")" << std::endl;
+  }
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function,
@@ -86,10 +109,17 @@ class PrototypeAST {
 public:
   PrototypeAST(const std::string &name, std::vector<std::string> Args)
     : Name(name), Args(std::move(Args)) {}
+
+  void print() { 
+    std::cout << Name << "("; 
+    for (auto &i : Args)
+      std::cout << i << ", ";
+    std::cout << ")";
+  }
 };
 
 /// FunctionAST - This class represents a function definition itself.
-class FunctionAST {
+class FunctionAST : public ExprAST {
   std::unique_ptr<PrototypeAST> Proto;
   std::unique_ptr<ExprAST> Body;
 
@@ -97,6 +127,13 @@ public:
   FunctionAST(std::unique_ptr<PrototypeAST> Proto,
               std::unique_ptr<ExprAST> Body)
     : Proto(std::move(Proto)), Body(std::move(Body)) {}
+
+  void print() { 
+    std::cout << "(function "; 
+    Proto->print(); std::cout << ", "; 
+    Body->print();
+    std::cout << ")" << std::endl;
+  }
 };
 
 #endif
