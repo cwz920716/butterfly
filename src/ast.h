@@ -18,7 +18,7 @@ class IntExprAST : public ExprAST {
 public:
   IntExprAST(int Val) : Val(Val) {}
   void print() { std::cout << "(Int=" << Val << ")"; }
-  // Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 /// VariableExprAST - Expression class for referencing a variable, like "a".

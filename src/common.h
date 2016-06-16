@@ -83,6 +83,9 @@ public:
   Lexer lex;
   const char *source;
   Token CurTok;
+  llvm::LLVMContext TheContext;
+  llvm::IRBuilder<> Builder;
+
   Token getNextToken() { return CurTok = lex.getNextToken(); } 
 
   static Driver *instance(const char *src) {
@@ -96,7 +99,7 @@ public:
   }
 
 private:
-  Driver(const char *src): lex(src), source(src) {} 
+  Driver(const char *src): lex(src), source(src), Builder(TheContext) {} 
 
   static Driver *_instance;
 };
