@@ -1,14 +1,3 @@
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-
 #include <iostream>
 #include <string>
 #include <string.h>
@@ -17,14 +6,9 @@
 #include "common.h"
 #include "ast.h"
 
+#define CUR_TOK (Driver::instance()->CurTok)
 
-/// CurTok/getNextToken - Provide a simple token buffer.  CurTok is the current
-/// token the parser is looking at.  getNextToken reads another token from the
-/// lexer and updates CurTok with its results.
-const char *test_scm = "(define (f x) 1)\n(f 1 2 3)";
-Lexer lex(test_scm);
-static Token CurTok;
-static Token getNextToken() { return CurTok = lex.getNextToken(); }
+static Token getNextToken() { return Driver::instance()->getNextToken(); }
 
 /// LogError* - These are little helper functions for error handling.
 std::unique_ptr<ExprAST> LogError(const char *Str) {
@@ -38,7 +22,7 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char *Str) {
 }
 
 bool expectToken(token_type expect) {
-  if (CurTok.type != expect) {
+  if (CUR_TOK.type != expect) {
     return false;
   }
   return true;
@@ -46,7 +30,7 @@ bool expectToken(token_type expect) {
 
 /// int_expr ::= int
 static std::unique_ptr<ExprAST> ParseIntExpr() {
-  int NumVal = stoi(CurTok.literal);
+  int NumVal = stoi(CUR_TOK.literal);
   auto Result = llvm::make_unique<IntExprAST>(NumVal);
   getNextToken(); // consume the number
   return std::move(Result);
@@ -55,7 +39,7 @@ static std::unique_ptr<ExprAST> ParseIntExpr() {
 /// id_expr
 ///   ::= identifier
 static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
-  std::string IdName = CurTok.literal;
+  std::string IdName = CUR_TOK.literal;
   getNextToken(); // eat identifier.
   return llvm::make_unique<VariableExprAST>(IdName);
 }
@@ -64,7 +48,7 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
 ///   ::= id_expr
 ///   ::= int_expr
 static std::unique_ptr<ExprAST> ParsePrimary() {
-  switch (CurTok.type) {
+  switch (CUR_TOK.type) {
   case tok_symbol:
     return ParseIdentifierExpr();
   case tok_integer:
@@ -77,7 +61,7 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
 static std::unique_ptr<ExprAST> ParseExpression();
 
 static std::unique_ptr<ExprAST> ParseBinOpExpr() {
-  token_type op = CurTok.type;
+  token_type op = CUR_TOK.type;
   getNextToken(); // eat op
   auto LHS = ParseExpression();
   if (!LHS) return LogError("unknown BinOp.LHS when expecting an expr");
@@ -105,16 +89,16 @@ static std::unique_ptr<ExprAST> ParseIfExpr() {
 /// for now, body is a single expression
 static std::unique_ptr<ExprAST> ParseDefExpr() {
   getNextToken(); // eat define
-  if (CurTok.type == tok_open) {
+  if (CUR_TOK.type == tok_open) {
     // function definition
     getNextToken(); // eat open
     if (!expectToken(tok_symbol)) return LogError("non ')' at end of expression");
-    std::string FunctName = CurTok.literal;
+    std::string FunctName = CUR_TOK.literal;
     getNextToken(); // eat fname
     std::vector<std::string> formals;
-    while (CurTok.type != tok_close) {
+    while (CUR_TOK.type != tok_close) {
       if (!expectToken(tok_symbol)) return LogError("non ')' at end of expression");
-      formals.push_back(CurTok.literal);
+      formals.push_back(CUR_TOK.literal);
       getNextToken(); // eat formal;
     }
     getNextToken(); // eat close;
@@ -123,7 +107,7 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
     return llvm::make_unique<FunctionAST>(std::move(proto), std::move(body));
   } else {
     // variable definition
-    std::string IdName = CurTok.literal;
+    std::string IdName = CUR_TOK.literal;
     getNextToken(); // eat identifier
     auto Result = ParseExpression();
     return llvm::make_unique<VarDefinitionExprAST>(IdName, std::move(Result));
@@ -136,7 +120,7 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
 ///   ::= define Definition
 ///   ::= expr*
 static std::unique_ptr<ExprAST> ParseList() {
-  switch (CurTok.type) {
+  switch (CUR_TOK.type) {
   case tok_add:
   case tok_sub:
   case tok_mul:
@@ -155,7 +139,7 @@ static std::unique_ptr<ExprAST> ParseList() {
     // application expr
     auto Callee = ParseExpression();
     std::vector<std::unique_ptr<ExprAST>> Args;
-    while (CurTok.type != tok_close) {
+    while (CUR_TOK.type != tok_close) {
       if (auto Arg = ParseExpression())
         Args.push_back(std::move(Arg));
       else
@@ -171,7 +155,7 @@ static std::unique_ptr<ExprAST> ParseList() {
 ///   ::= ( list )
 ///
 static std::unique_ptr<ExprAST> ParseExpression() {
-  if (CurTok.type == tok_open) {
+  if (CUR_TOK.type == tok_open) {
     getNextToken(); // eat open
     auto Result = ParseList();
     if (!expectToken(tok_close)) return LogError("non ')' at end of expression");
@@ -182,7 +166,7 @@ static std::unique_ptr<ExprAST> ParseExpression() {
   }
 }
 
-static void HandleCommand() {
+void HandleCommand() {
   // Evaluate a top-level expression into an anonymous function.
   if (auto ast = ParseExpression()) {
     // dump AST
@@ -193,30 +177,3 @@ static void HandleCommand() {
     getNextToken();
   }
 }
-
-/// top ::= definition | external | expression | ';'
-static void MainLoop() {
-  while (true) {
-    switch (CurTok.type) {
-    case tok_eof:
-      return;
-    default:
-      HandleCommand();
-      break;
-    }
-  }
-}
-
-int main() {
-  // Prime the first token.
-  getNextToken();
-
-  // Run the main "interpreter loop" now.
-  MainLoop();
-
-  return 0;
-}
-
-
-
-

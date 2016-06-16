@@ -8,6 +8,7 @@ class ExprAST {
 public:
   virtual ~ExprAST() {}
   virtual void print() {}
+  virtual llvm::Value *codegen() { return NULL; }
 };
 
 /// IntExprAST - Expression class for numeric literals like "1.0".
@@ -17,6 +18,7 @@ class IntExprAST : public ExprAST {
 public:
   IntExprAST(int Val) : Val(Val) {}
   void print() { std::cout << "(Int=" << Val << ")"; }
+  // Value *codegen() override;
 };
 
 /// VariableExprAST - Expression class for referencing a variable, like "a".
@@ -26,6 +28,7 @@ class VariableExprAST : public ExprAST {
 public:
   VariableExprAST(const std::string &Name) : Name(Name) {}
   void print() { std::cout << "(Var=" << Name << ")"; }
+  // Value *codegen() override;
 };
 
 /// VarDefinitionExprAST - Expression class for referencing a variable, like "a".
@@ -40,6 +43,7 @@ public:
     Value->print();
     std::cout << std::endl; 
   }
+  // Value *codegen() override;
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -56,8 +60,9 @@ public:
     std::cout << "(Op=" << token_desc[Op] << ", "; 
     LHS->print(); std::cout << ", "; 
     RHS->print();
-    std::cout << ")" << std::endl;
+    std::cout << ")";
   }
+  // Value *codegen() override;
 };
 
 /// IfExprAST - Expression class for a if statement.
@@ -75,8 +80,9 @@ public:
     Pred->print(); std::cout << ", "; 
     Then->print(); std::cout << ", "; 
     Else->print();
-    std::cout << ")" << std::endl;
+    std::cout << ")";
   }
+  // Value *codegen() override;
 };
 
 /// CallExprAST - Expression class for function calls.
@@ -95,8 +101,9 @@ public:
     for (auto &Arg : Args) {
       Arg->print(); std::cout << ", "; 
     }
-    std::cout << ")" << std::endl;
+    std::cout << ")";
   }
+  // Value *codegen() override;
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function,
@@ -116,6 +123,7 @@ public:
       std::cout << i << ", ";
     std::cout << ")";
   }
+  // Value *codegen() override;
 };
 
 /// FunctionAST - This class represents a function definition itself.
@@ -134,6 +142,9 @@ public:
     Body->print();
     std::cout << ")" << std::endl;
   }
+  // Value *codegen() override;
 };
+
+void HandleCommand();
 
 #endif

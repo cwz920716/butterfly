@@ -1,6 +1,17 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
 enum token_type {
@@ -65,6 +76,29 @@ public:
 
     return token;
   }
+};
+
+class Driver {
+public:
+  Lexer lex;
+  const char *source;
+  Token CurTok;
+  Token getNextToken() { return CurTok = lex.getNextToken(); } 
+
+  static Driver *instance(const char *src) {
+    if (!_instance)
+      _instance = new Driver(src);
+    return _instance;
+  }
+
+  static Driver *instance() {
+    return _instance;
+  }
+
+private:
+  Driver(const char *src): lex(src), source(src) {} 
+
+  static Driver *_instance;
 };
 
 #endif
