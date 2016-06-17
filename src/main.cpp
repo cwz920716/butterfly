@@ -23,7 +23,7 @@ static void MainLoop() {
 }
 
 int main() {
-  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(define (abs x) (if (< x 0) (- 0 x) x))";
+  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(+ 1 2)\n(square 4)";
 
   // initialize
   Driver *driver = Driver::instance(test_scm);
@@ -32,6 +32,9 @@ int main() {
 
   // Run the main "interpreter loop" now.
   MainLoop();
+
+  // Print out all of the generated code.
+  (Driver::instance()->TheModule)->dump();
 
   return 0;
 } 

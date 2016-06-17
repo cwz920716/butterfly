@@ -8,7 +8,8 @@ class ExprAST {
 public:
   virtual ~ExprAST() {}
   virtual void print() {}
-  virtual llvm::Value *codegen() { return NULL; }
+  virtual bool isaFunction() { return false; }
+  virtual llvm::Value *codegen() { return nullptr; }
 };
 
 /// IntExprAST - Expression class for numeric literals like "1.0".
@@ -17,7 +18,7 @@ class IntExprAST : public ExprAST {
 
 public:
   IntExprAST(int Val) : Val(Val) {}
-  void print() { std::cout << "(Int=" << Val << ")"; }
+  void print() override { std::cout << "(Int=" << Val << ")"; }
   llvm::Value *codegen() override;
 };
 
@@ -27,8 +28,8 @@ class VariableExprAST : public ExprAST {
 
 public:
   VariableExprAST(const std::string &Name) : Name(Name) {}
-  void print() { std::cout << "(Var=" << Name << ")"; }
-  // Value *codegen() override;
+  void print() override { std::cout << "(Var=" << Name << ")"; }
+  llvm::Value *codegen() override;
 };
 
 /// VarDefinitionExprAST - Expression class for referencing a variable, like "a".
@@ -38,12 +39,12 @@ class VarDefinitionExprAST : public ExprAST {
 
 public:
   VarDefinitionExprAST(const std::string &Name, std::unique_ptr<ExprAST> value) : Name(Name), Value(std::move(value)) {}
-  void print() { 
+  void print() override { 
     std::cout << "(var " << Name << " <- ";
     Value->print();
     std::cout << std::endl; 
   }
-  // Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -56,13 +57,13 @@ public:
                 std::unique_ptr<ExprAST> RHS)
     : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
 
-  void print() { 
+  void print() override { 
     std::cout << "(Op=" << token_desc[Op] << ", "; 
     LHS->print(); std::cout << ", "; 
     RHS->print();
     std::cout << ")";
   }
-  // Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 /// IfExprAST - Expression class for a if statement.
@@ -75,35 +76,40 @@ public:
             std::unique_ptr<ExprAST> _else)
     : Pred(std::move(_pred)), Then(std::move(_then)), Else(std::move(_else)) {}
 
-  void print() { 
+  void print() override { 
     std::cout << "(If "; 
     Pred->print(); std::cout << ", "; 
     Then->print(); std::cout << ", "; 
     Else->print();
     std::cout << ")";
   }
-  // Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 /// CallExprAST - Expression class for function calls.
 class CallExprAST : public ExprAST {
-  std::unique_ptr<ExprAST> Callee;
+  std::string Callee; // std::unique_ptr<ExprAST> Callee;
   std::vector<std::unique_ptr<ExprAST>> Args;
 
 public:
+/*
   CallExprAST(std::unique_ptr<ExprAST> Callee,
               std::vector<std::unique_ptr<ExprAST>> Args)
     : Callee(std::move(Callee)), Args(std::move(Args)) {}
+*/
+  CallExprAST(const std::string &Callee,
+              std::vector<std::unique_ptr<ExprAST>> Args)
+      : Callee(Callee), Args(std::move(Args)) {}
 
-  void print() { 
-    std::cout << "(apply "; 
-    Callee->print(); std::cout << ": ";
+  void print() override { 
+    std::cout << "(apply " << Callee << ": "; 
+    // Callee->print(); std::cout << ": ";
     for (auto &Arg : Args) {
       Arg->print(); std::cout << ", "; 
     }
     std::cout << ")";
   }
-  // Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function,
@@ -123,7 +129,8 @@ public:
       std::cout << i << ", ";
     std::cout << ")";
   }
-  // Value *codegen() override;
+  const std::string &getName() const { return Name; }
+  llvm::Function *codegen();
 };
 
 /// FunctionAST - This class represents a function definition itself.
@@ -136,14 +143,18 @@ public:
               std::unique_ptr<ExprAST> Body)
     : Proto(std::move(Proto)), Body(std::move(Body)) {}
 
-  void print() { 
+  bool isaFunction() override { return true; }
+  void print() override { 
     std::cout << "(function "; 
     Proto->print(); std::cout << ", "; 
     Body->print();
     std::cout << ")" << std::endl;
   }
-  // Value *codegen() override;
+  llvm::Value *codegen() override;
 };
+
+std::unique_ptr<ExprAST> LogError(const char *Str);
+std::unique_ptr<PrototypeAST> LogErrorP(const char *Str);
 
 void HandleCommand();
 

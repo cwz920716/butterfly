@@ -11,6 +11,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
 
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
@@ -85,6 +86,7 @@ public:
   Token CurTok;
   llvm::LLVMContext TheContext;
   llvm::IRBuilder<> Builder;
+  std::unique_ptr<llvm::Module> TheModule;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 
 
@@ -99,7 +101,9 @@ public:
   }
 
 private:
-  Driver(const char *src): lex(src), source(src), Builder(TheContext) {} 
+  Driver(const char *src): lex(src), source(src), Builder(TheContext) {
+    TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+  } 
 
   static Driver *_instance;
 };

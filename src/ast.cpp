@@ -118,7 +118,7 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
 ///   ::= BinOp expr1 expr2
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
-///   ::= expr*
+///   ::= symbol expr*
 static std::unique_ptr<ExprAST> ParseList() {
   switch (CUR_TOK.type) {
   case tok_add:
@@ -137,7 +137,9 @@ static std::unique_ptr<ExprAST> ParseList() {
     return llvm::make_unique<VariableExprAST>(std::string("nil"));
   default:
     // application expr
-    auto Callee = ParseExpression();
+    // auto Callee = ParseExpression();
+    auto Callee = CUR_TOK.literal;
+    getNextToken(); // eat function identifier.
     std::vector<std::unique_ptr<ExprAST>> Args;
     while (CUR_TOK.type != tok_close) {
       if (auto Arg = ParseExpression())
@@ -145,10 +147,16 @@ static std::unique_ptr<ExprAST> ParseList() {
       else
         return LogError("non expr as arg at proc application");
     }
-    return llvm::make_unique<CallExprAST>(std::move(Callee), std::move(Args));
+    // return llvm::make_unique<CallExprAST>(std::move(Callee), std::move(Args));
+    return llvm::make_unique<CallExprAST>(Callee, std::move(Args));
   }
 }
 
+static std::string gensym() {
+  static int id = 0;
+  static std::string sym = "_gensym";
+  return sym + std::to_string(id++);
+}
 
 /// expression
 ///   ::= primary
@@ -169,9 +177,15 @@ static std::unique_ptr<ExprAST> ParseExpression() {
 void HandleCommand() {
   // Evaluate a top-level expression into an anonymous function.
   if (auto ast = ParseExpression()) {
-    // dump AST
-    ast->print();
-    std::cout << std::endl;
+    if (ast->isaFunction()) {
+       ast->codegen();
+    } else {
+      // Make an anonymous proto.
+      auto proto = llvm::make_unique<PrototypeAST>(gensym(),
+                                                   std::vector<std::string>());
+      auto fn = llvm::make_unique<FunctionAST>(std::move(proto), std::move(ast));
+      fn->codegen();
+    }
   } else {
     // Skip token for error recovery.
     getNextToken();
