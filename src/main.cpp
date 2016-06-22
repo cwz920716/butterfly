@@ -8,6 +8,27 @@
 
 Driver *Driver::_instance;
 
+void Driver::Initialize() {
+  // Open a new module.
+  TheJIT = llvm::make_unique<llvm::orc::KaleidoscopeJIT>();
+  TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+  TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
+
+  // Create a new pass manager attached to it.
+  TheFPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
+
+  // Do simple "peephole" optimizations and bit-twiddling optzns.
+  TheFPM->add(llvm::createInstructionCombiningPass());
+  // Reassociate expressions.
+  TheFPM->add(llvm::createReassociatePass());
+  // Eliminate Common SubExpressions.
+  TheFPM->add(llvm::createGVNPass());
+  // Simplify the control flow graph (deleting unreachable blocks, etc).
+  TheFPM->add(llvm::createCFGSimplificationPass());
+
+  TheFPM->doInitialization();
+}
+
 /// top ::= definition | external | expression | ';'
 static void MainLoop() {
   while (true) {
@@ -23,10 +44,17 @@ static void MainLoop() {
 }
 
 int main() {
-  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(+ 1 2)\n(square 4)";
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+
+  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(define (f x) (* (+ 1 (+ 2 x)) (+ x (+ 2 1))))\n(square 4)";
 
   // initialize
   Driver *driver = Driver::instance(test_scm);
+  driver->Initialize();
+  std::cout << "iok" << std::endl;
+
   // Prime the first token.
   driver->getNextToken();
 

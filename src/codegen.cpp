@@ -9,6 +9,7 @@
 #define LLVM_CONTEXT (Driver::instance()->TheContext)
 #define BUILDER (Driver::instance()->Builder)
 #define MODULE (Driver::instance()->TheModule)
+#define FPM (Driver::instance()->TheFPM)
 
 // for now, we only keep one scope, which is the scope of function local
 std::map<std::string, llvm::Value *> NamedValues;
@@ -117,6 +118,7 @@ llvm::Value *FunctionAST::codegen() {
   if (llvm::Value *RetVal = Body->codegen()) {
     // Finish off the function.
     BUILDER.CreateRet(RetVal);
+    FPM->run(*TheFunction);
 
     // Validate the generated code, checking for consistency.
     llvm::verifyFunction(*TheFunction);
