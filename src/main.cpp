@@ -10,7 +10,6 @@ Driver *Driver::_instance;
 
 void Driver::Initialize() {
   // Open a new module.
-  TheJIT = llvm::make_unique<llvm::orc::KaleidoscopeJIT>();
   TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
   TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
@@ -48,12 +47,11 @@ int main() {
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
 
-  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(define (f x) (* (+ 1 (+ 2 x)) (+ x (+ 2 1))))\n(square 4)";
+  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)";
 
   // initialize
   Driver *driver = Driver::instance(test_scm);
   driver->Initialize();
-  std::cout << "iok" << std::endl;
 
   // Prime the first token.
   driver->getNextToken();
@@ -62,7 +60,7 @@ int main() {
   MainLoop();
 
   // Print out all of the generated code.
-  (Driver::instance()->TheModule)->dump();
+  // (Driver::instance()->TheModule)->dump();
 
   return 0;
 } 

@@ -7,6 +7,9 @@
 #include "ast.h"
 
 #define CUR_TOK (Driver::instance()->CurTok)
+#define JIT (Driver::instance()->TheJIT)
+#define MODULE (Driver::instance()->TheModule)
+#define INIT Driver::instance()->Initialize()
 
 static Token getNextToken() { return Driver::instance()->getNextToken(); }
 
@@ -178,13 +181,37 @@ void HandleCommand() {
   // Evaluate a top-level expression into an anonymous function.
   if (auto ast = ParseExpression()) {
     if (ast->isaFunction()) {
-       ast->codegen();
+       if(auto *FnIR = ast->codegen()) {
+         std::cout << "Read function definition:" << std::endl;
+         FnIR->dump();
+         JIT->addModule(std::move(MODULE));
+         INIT;
+       } else {
+         std::cout << "Read function definition: (nil)" << std::endl;
+       }
     } else {
       // Make an anonymous proto.
-      auto proto = llvm::make_unique<PrototypeAST>(gensym(),
+      auto proto = llvm::make_unique<PrototypeAST>("__anon_expr",
                                                    std::vector<std::string>());
       auto fn = llvm::make_unique<FunctionAST>(std::move(proto), std::move(ast));
       fn->codegen();
+
+      // JIT the module containing the anonymous expression, keeping a handle so
+      // we can free it later.
+      auto H = JIT->addModule(std::move(MODULE));
+      INIT;
+
+      // Search the JIT for the __anon_expr symbol.
+      auto ExprSymbol = JIT->findSymbol("__anon_expr");
+      assert(ExprSymbol && "Function not found");
+
+      // Get the symbol's address and cast it to the right type (takes no
+      // arguments, returns a double) so we can call it as a native function.
+      int (*FP)() = (int (*)())(intptr_t)ExprSymbol.getAddress();
+      fprintf(stderr, "Evaluated to %d\n", FP());
+
+      // Delete the anonymous expression module from the JIT.
+      JIT->removeModule(H);
     }
   } else {
     // Skip token for error recovery.

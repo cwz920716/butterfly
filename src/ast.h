@@ -158,4 +158,39 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char *Str);
 
 void HandleCommand();
 
+class Driver {
+public:
+  Lexer lex;
+  const char *source;
+  Token CurTok;
+  llvm::LLVMContext TheContext;
+  llvm::IRBuilder<> Builder;
+  std::unique_ptr<llvm::Module> TheModule;
+  std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
+  std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
+  std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
+
+  Token getNextToken() { return CurTok = lex.getNextToken(); } 
+
+  static Driver *instance(const char *src) {
+    if (!_instance)
+      _instance = new Driver(src);
+    return _instance;
+  }
+
+  static Driver *instance() {
+    return _instance;
+  }
+
+  void Initialize(void);
+
+private:
+  Driver(const char *src): lex(src), source(src), Builder(TheContext) {
+    // TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+    TheJIT = llvm::make_unique<llvm::orc::KaleidoscopeJIT>();
+  } 
+
+  static Driver *_instance;
+};
+
 #endif

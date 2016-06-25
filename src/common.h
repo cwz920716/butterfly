@@ -85,37 +85,4 @@ public:
   }
 };
 
-class Driver {
-public:
-  Lexer lex;
-  const char *source;
-  Token CurTok;
-  llvm::LLVMContext TheContext;
-  llvm::IRBuilder<> Builder;
-  std::unique_ptr<llvm::Module> TheModule;
-  std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
-  std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
-
-  Token getNextToken() { return CurTok = lex.getNextToken(); } 
-
-  static Driver *instance(const char *src) {
-    if (!_instance)
-      _instance = new Driver(src);
-    return _instance;
-  }
-
-  static Driver *instance() {
-    return _instance;
-  }
-
-  void Initialize(void);
-
-private:
-  Driver(const char *src): lex(src), source(src), Builder(TheContext) {
-    // TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
-  } 
-
-  static Driver *_instance;
-};
-
 #endif
