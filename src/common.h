@@ -29,6 +29,7 @@ enum token_type {
   tok_define,
   tok_lambda,
   tok_if,
+  tok_cond,
 
   // operators
   tok_open,

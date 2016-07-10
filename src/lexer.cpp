@@ -14,6 +14,7 @@ std::string token_desc[] = {
                 "tok_define",
                 "tok_lambda",
                 "tok_if",
+                "tok_cond",
                 "tok_open",
                 "tok_close",
                 "tok_add",
@@ -108,6 +109,8 @@ token_type getIdToken(const char *text, int *len) {
     return tok_lambda;
   if (equalsKeyword(text, n, "if"))
     return tok_if;
+  if (equalsKeyword(text, n, "cond"))
+    return tok_cond;
 
   return tok_symbol;
 }

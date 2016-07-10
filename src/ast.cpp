@@ -122,6 +122,7 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
 ///   ::= symbol expr*
+///   ::= cond ((pred1) (expr1))+
 static std::unique_ptr<ExprAST> ParseList() {
   switch (CUR_TOK.type) {
   case tok_add:
@@ -194,7 +195,7 @@ void HandleCommand() {
       auto proto = llvm::make_unique<PrototypeAST>("__anon_expr",
                                                    std::vector<std::string>());
       auto fn = llvm::make_unique<FunctionAST>(std::move(proto), std::move(ast));
-      fn->codegen();
+      fn->codegen()->dump();
 
       // JIT the module containing the anonymous expression, keeping a handle so
       // we can free it later.

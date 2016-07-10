@@ -36,6 +36,7 @@ llvm::Function *getFunction(std::string Name) {
 }
 
 llvm::Value *IntExprAST::codegen() {
+  std::cout << "int " << Val << std::endl;
   return llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Val, true));
 }
 
@@ -72,7 +73,52 @@ llvm::Value *BinaryExprAST::codegen() {
 }
 
 llvm::Value *IfExprAST::codegen() {
-  return LogErrorV("IfExprAST::codegen() not implemented yet.");
+  // return LogErrorV("IfExprAST::codegen() not implemented yet.");
+  llvm::Value* pred = Pred->codegen();
+  if (!pred)
+    return LogErrorV("invalid predicate in If.");
+
+  // Convert condition to a bool by comparing equal to 0.
+  pred = BUILDER.CreateICmpNE(
+                  pred, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "ifcond");
+
+  llvm::Function *TheFunction = BUILDER.GetInsertBlock()->getParent();
+
+  // Create blocks for the then and else cases.  Insert the 'then' block at the
+  // end of the function.
+  llvm::BasicBlock *thenBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "then", TheFunction);
+  llvm::BasicBlock *elseBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "else");
+  llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "ifcont");
+
+  BUILDER.CreateCondBr(pred, thenBB, elseBB);
+  // Emit then value.
+  BUILDER.SetInsertPoint(thenBB);
+  llvm::Value *thenV = Then->codegen();
+  if (!thenV)
+    return LogErrorV("invalid then in If.");
+  BUILDER.CreateBr(mergeBB);
+  // Codegen of 'Then' can change the current block, update ThenBB for the PHI.
+  thenBB = BUILDER.GetInsertBlock();
+
+  // Emit else block.
+  TheFunction->getBasicBlockList().push_back(elseBB);
+  BUILDER.SetInsertPoint(elseBB);
+  llvm::Value *elseV = Else->codegen();
+  if (!elseV)
+    return LogErrorV("invalid else in If.");
+  BUILDER.CreateBr(mergeBB);
+  // codegen of 'Else' can change the current block, update ElseBB for the PHI.
+  elseBB = BUILDER.GetInsertBlock();  
+
+  // Emit merge block.
+  TheFunction->getBasicBlockList().push_back(mergeBB);
+  BUILDER.SetInsertPoint(mergeBB);
+  llvm::PHINode *PN =
+    BUILDER.CreatePHI(llvm::Type::getInt32Ty(LLVM_CONTEXT), 2, "phi");
+
+  PN->addIncoming(thenV, thenBB);
+  PN->addIncoming(elseV, elseBB);
+  return PN;
 }
 
 llvm::Value *CallExprAST::codegen() {
