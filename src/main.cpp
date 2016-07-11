@@ -17,13 +17,13 @@ void Driver::Initialize() {
   TheFPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
 
   // Do simple "peephole" optimizations and bit-twiddling optzns.
-  TheFPM->add(llvm::createInstructionCombiningPass());
+  // TheFPM->add(llvm::createInstructionCombiningPass());
   // Reassociate expressions.
-  TheFPM->add(llvm::createReassociatePass());
+  // TheFPM->add(llvm::createReassociatePass());
   // Eliminate Common SubExpressions.
-  TheFPM->add(llvm::createGVNPass());
+  // TheFPM->add(llvm::createGVNPass());
   // Simplify the control flow graph (deleting unreachable blocks, etc).
-  TheFPM->add(llvm::createCFGSimplificationPass());
+  // TheFPM->add(llvm::createCFGSimplificationPass());
 
   TheFPM->doInitialization();
 }
@@ -48,6 +48,7 @@ int main() {
   llvm::InitializeNativeTargetAsmParser();
 
   const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)\n(if 1 2 3)";
+  test_scm = "(define (abs x) (cond ((> x 0) x) ((= x 0) 0) ((< x 0) (- 0 x))))\n(abs -1)";
 
   // initialize
   Driver *driver = Driver::instance(test_scm);

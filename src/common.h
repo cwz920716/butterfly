@@ -41,6 +41,9 @@ enum token_type {
   tok_gt,
   tok_lt,
   tok_eq,
+  tok_and,
+  tok_or,
+  tok_not,
 
   // primitive types
   tok_symbol,

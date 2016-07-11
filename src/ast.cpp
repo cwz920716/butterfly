@@ -57,21 +57,33 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
   case tok_integer:
     return ParseIntExpr();
   default:
+    std::cout << "when parsing " << CUR_TOK.literal;
     return LogError("unknown token when expecting a primary");
   }
 }
 
 static std::unique_ptr<ExprAST> ParseExpression();
 
+static std::unique_ptr<ExprAST> ParseUnaryOpExpr() {
+  return LogError("Unary not support yet.");
+}
+
 static std::unique_ptr<ExprAST> ParseBinOpExpr() {
   token_type op = CUR_TOK.type;
   getNextToken(); // eat op
   auto LHS = ParseExpression();
   if (!LHS) return LogError("unknown BinOp.LHS when expecting an expr");
-  auto RHS = ParseExpression();
-  if (!RHS) return LogError("unknown BinOp.RHS when expecting an expr");
 
-  return llvm::make_unique<BinaryExprAST>(op, std::move(LHS), std::move(RHS));
+  // handle a special case of (- x)
+  if (op == tok_sub && expectToken(tok_close)) {
+    std::unique_ptr<ExprAST> zero = llvm::make_unique<IntExprAST>(0);
+    return llvm::make_unique<BinaryExprAST>(op, std::move(zero), std::move(LHS));
+  } else {
+    auto RHS = ParseExpression();
+    if (!RHS) return LogError("unknown BinOp.RHS when expecting an expr");
+
+    return llvm::make_unique<BinaryExprAST>(op, std::move(LHS), std::move(RHS));
+  }
 }
 
 static std::unique_ptr<ExprAST> ParseIfExpr() {
@@ -84,6 +96,47 @@ static std::unique_ptr<ExprAST> ParseIfExpr() {
   if (!Else) return LogError("unknown If.Else when expecting an expr");
 
   return llvm::make_unique<IfExprAST>(std::move(Pred), std::move(Then), std::move(Else));
+}
+
+std::unique_ptr<ExprAST> CondExprAST::lower() {
+  print();
+  std::unique_ptr<ExprAST> base_else = llvm::make_unique<IntExprAST>(0);
+
+  while (!Preds.empty() && !Exprs.empty()) {
+    auto pred = std::move(Preds.back());
+    Preds.pop_back();
+    auto base_then = std::move(Exprs.back());
+    Exprs.pop_back();
+    auto subif = llvm::make_unique<IfExprAST>(std::move(pred), std::move(base_then), std::move(base_else));
+    base_else = std::move(subif);
+  }
+
+  return base_else;
+}
+
+static std::unique_ptr<ExprAST> ParseCondExpr() {
+  getNextToken(); // eat cond
+  std::vector<std::unique_ptr<ExprAST>> preds;
+  std::vector<std::unique_ptr<ExprAST>> exprs;
+  while (CUR_TOK.type != tok_close) {
+    if (!expectToken(tok_open)) return LogError("non '(' at begin of sub cond expression");
+    getNextToken(); // eat open
+    if (auto pred = ParseExpression()) {
+      if (auto expr = ParseExpression()) {  
+        preds.push_back(std::move(pred));
+        exprs.push_back(std::move(expr));
+      } else
+        return LogError("non expr as expr at cond-pred");
+    } else
+      return LogError("non expr as preds at cond");
+    if (!expectToken(tok_close)) return LogError("non ')' at end of sub cond expression");
+    getNextToken(); // eat close
+  }
+  auto cond = llvm::make_unique<CondExprAST>(std::move(preds), std::move(exprs));
+  auto lowered = cond->lower();
+
+  cond.reset();
+  return lowered;
 }
 
 /// Definition
@@ -132,13 +185,19 @@ static std::unique_ptr<ExprAST> ParseList() {
   case tok_gt:
   case tok_lt:
   case tok_eq:
+  case tok_and:
+  case tok_or:
     return ParseBinOpExpr();
+  case tok_not:
+    return ParseUnaryOpExpr();
   case tok_if:
     return ParseIfExpr();
   case tok_define:
     return ParseDefExpr();
   case tok_close:
     return llvm::make_unique<VariableExprAST>(std::string("nil"));
+  case tok_cond:
+    return ParseCondExpr();
   default:
     // application expr
     // auto Callee = ParseExpression();

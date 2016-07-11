@@ -66,6 +66,23 @@ public:
   llvm::Value *codegen() override;
 };
 
+/// UnaryExprAST - Expression class for a binary operator.
+class UnaryExprAST : public ExprAST {
+  token_type Op;
+  std::unique_ptr<ExprAST> RHS;
+
+public:
+  UnaryExprAST(token_type op, std::unique_ptr<ExprAST> RHS)
+    : Op(op), RHS(std::move(RHS)) {}
+
+  void print() override { 
+    std::cout << "(Op=" << token_desc[Op] << ", "; 
+    RHS->print();
+    std::cout << ")";
+  }
+  llvm::Value *codegen() override;
+};
+
 /// IfExprAST - Expression class for a if statement.
 class IfExprAST : public ExprAST {
   std::unique_ptr<ExprAST> Pred, Then, Else;
@@ -151,6 +168,48 @@ public:
     std::cout << ")" << std::endl;
   }
   llvm::Value *codegen() override;
+};
+
+/**************************************************************************************************
+ *
+ * Here starts high level syntax, a.k.a, PseudoAST
+ * e.g. function definiton (not yet supported), lambda, let
+ * high level AST cannot do codegen, but can be lowered to a low level AST
+ *
+ **************************************************************************************************/
+
+/// ExprAST - Base class for all expression nodes.
+class PseudoAST {
+public:
+  virtual ~PseudoAST() {}
+  virtual void print() {}
+  virtual std::unique_ptr<ExprAST> lower() = 0;
+};
+
+class CondExprAST: public PseudoAST {
+  std::vector<std::unique_ptr<ExprAST>> Preds;
+  std::vector<std::unique_ptr<ExprAST>> Exprs;
+
+public:
+  CondExprAST(std::vector<std::unique_ptr<ExprAST>> preds,
+              std::vector<std::unique_ptr<ExprAST>> exprs)
+      : Preds(std::move(preds)), Exprs(std::move(exprs)) {}
+
+  void print() override { 
+    std::cout << "(Cond " << "Preds: {"; 
+    // Callee->print(); std::cout << ": ";
+    for (auto &p : Preds) {
+      p->print(); std::cout << ", "; 
+    }
+    std::cout << "}\n\tExprs: {"; 
+    // Callee->print(); std::cout << ": ";
+    for (auto &e : Exprs) {
+      e->print(); std::cout << ", "; 
+    }
+    std::cout << "})" << std::endl;
+  }
+  
+  virtual std::unique_ptr<ExprAST> lower() override;
 };
 
 std::unique_ptr<ExprAST> LogError(const char *Str);

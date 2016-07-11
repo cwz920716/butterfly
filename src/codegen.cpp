@@ -36,7 +36,6 @@ llvm::Function *getFunction(std::string Name) {
 }
 
 llvm::Value *IntExprAST::codegen() {
-  std::cout << "int " << Val << std::endl;
   return llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Val, true));
 }
 
@@ -52,9 +51,14 @@ llvm::Value *VarDefinitionExprAST::codegen() {
   return LogErrorV("VarDefinitionExprAST::codegen() not implemented yet.");
 }
 
+llvm::Value *UnaryExprAST::codegen() {
+  return LogErrorV("UnaryExprAST::codegen() not implemented yet.");
+}
+
 llvm::Value *BinaryExprAST::codegen() {
   llvm::Value *L = LHS->codegen();
   llvm::Value *R = RHS->codegen();
+  llvm::Value *booltmp;
   if (!L || !R)
     return LogErrorV("Unknown LHS or RHS.");
 
@@ -67,6 +71,15 @@ llvm::Value *BinaryExprAST::codegen() {
     return BUILDER.CreateMul(L, R, "multmp");
   case tok_div:
     return BUILDER.CreateSDiv(L, R, "multmp");
+  case tok_eq:
+    booltmp = BUILDER.CreateICmpEQ(L, R, "eqtmp");
+    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+  case tok_gt:
+    booltmp = BUILDER.CreateICmpSGT(L, R, "gttmp");
+    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+  case tok_lt:
+    booltmp = BUILDER.CreateICmpSLT(L, R, "lttmp");
+    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");
   }
