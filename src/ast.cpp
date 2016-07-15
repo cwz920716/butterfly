@@ -65,7 +65,12 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
 static std::unique_ptr<ExprAST> ParseExpression();
 
 static std::unique_ptr<ExprAST> ParseUnaryOpExpr() {
-  return LogError("Unary not support yet.");
+  token_type op = CUR_TOK.type;
+  getNextToken(); // eat op
+  auto RHS = ParseExpression();
+  if (!RHS) return LogError("unknown UnaryOp.RHS when expecting an expr");
+
+  return llvm::make_unique<UnaryExprAST>(op, std::move(RHS));
 }
 
 static std::unique_ptr<ExprAST> ParseBinOpExpr() {

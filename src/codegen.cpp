@@ -52,13 +52,24 @@ llvm::Value *VarDefinitionExprAST::codegen() {
 }
 
 llvm::Value *UnaryExprAST::codegen() {
-  return LogErrorV("UnaryExprAST::codegen() not implemented yet.");
+  llvm::Value *R = RHS->codegen();
+  llvm::Value *booltmp;
+  if (!R)
+    return LogErrorV("Unknown RHS.");
+
+  switch (Op) {
+  case tok_not:
+    booltmp = BUILDER.CreateICmpEQ(R, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "nottmp");
+    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+  default:
+    return LogErrorV("invalid binary operator or not implemented yet.");
+  }
 }
 
 llvm::Value *BinaryExprAST::codegen() {
   llvm::Value *L = LHS->codegen();
   llvm::Value *R = RHS->codegen();
-  llvm::Value *booltmp;
+  llvm::Value *booltmp, *tmp;
   if (!L || !R)
     return LogErrorV("Unknown LHS or RHS.");
 
@@ -79,6 +90,14 @@ llvm::Value *BinaryExprAST::codegen() {
     return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   case tok_lt:
     booltmp = BUILDER.CreateICmpSLT(L, R, "lttmp");
+    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+  case tok_and:
+    tmp = BUILDER.CreateAnd(L, R, "andtmp");
+    booltmp = BUILDER.CreateICmpNE(tmp, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "andbooltmp");
+    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+  case tok_or:
+    tmp = BUILDER.CreateOr(L, R, "ortmp");
+    booltmp = BUILDER.CreateICmpNE(tmp, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "orbooltmp");
     return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");

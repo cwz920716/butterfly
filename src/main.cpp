@@ -48,7 +48,7 @@ int main() {
   llvm::InitializeNativeTargetAsmParser();
 
   const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)\n(if 1 2 3)";
-  test_scm = "(define (abs x) (cond ((> x 0) x) ((= x 0) 0) ((< x 0) (- 0 x))))\n(abs -1)";
+  test_scm = "(define (abs x) (cond ((or (> x 0) (= x 0)) x) ((< x 0) (- x))))\n(abs -1)\n(abs 0)\n(abs 1)";
 
   // initialize
   Driver *driver = Driver::instance(test_scm);
