@@ -26,6 +26,8 @@ void Driver::Initialize() {
   // TheFPM->add(llvm::createCFGSimplificationPass());
 
   TheFPM->doInitialization();
+
+  init_butterfly_per_module();
 }
 
 /// top ::= definition | external | expression | ';'
@@ -43,12 +45,14 @@ static void MainLoop() {
 }
 
 int main() {
+  init_butterfly();
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
+  llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
 
   const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)\n(if 1 2 3)";
-  test_scm = "(define (abs x) (cond ((or (> x 0) (= x 0)) x) ((< x 0) (- x))))\n(abs -1)\n(abs 0)\n(abs 1)";
+  const char *test_scm2 = "1\n2\n3\n123\n(* 2 3)\n(and 1 2)\n(not 0)\n(not (and (+ 1 2) (* 4 5)))\n(if (> 2 12) 1 -1)";
 
   // initialize
   Driver *driver = Driver::instance(test_scm);

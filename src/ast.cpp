@@ -179,7 +179,8 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
 ///   ::= BinOp expr1 expr2
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
-///   ::= symbol expr*
+///   ::= symbol expr*  (* static dispatch *)
+///   ::= (list) expr*  (* dynamic dispatch *)
 ///   ::= cond ((pred1) (expr1))+
 static std::unique_ptr<ExprAST> ParseList() {
   switch (CUR_TOK.type) {
@@ -272,8 +273,10 @@ void HandleCommand() {
 
       // Get the symbol's address and cast it to the right type (takes no
       // arguments, returns a double) so we can call it as a native function.
-      int (*FP)() = (int (*)())(intptr_t)ExprSymbol.getAddress();
-      fprintf(stderr, "Evaluated to %d\n", FP());
+      char *(*FP)() = (char *(*)())(intptr_t)ExprSymbol.getAddress();
+      bt_value_t *ret = (bt_value_t *) FP();
+      if (bt_is_int64(ret))
+        fprintf(stderr, "Evaluated to %ld\n", bt_to_int64(ret));
 
       // Delete the anonymous expression module from the JIT.
       JIT->removeModule(H);

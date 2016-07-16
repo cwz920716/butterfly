@@ -1,6 +1,7 @@
 #ifndef _AST_H
 #define _AST_H
 
+#include <iostream>
 #include "common.h"
 
 /// ExprAST - Base class for all expression nodes.

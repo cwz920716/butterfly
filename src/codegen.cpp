@@ -36,7 +36,11 @@ llvm::Function *getFunction(std::string Name) {
 }
 
 llvm::Value *IntExprAST::codegen() {
-  return llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Val, true));
+  std::string bt_new_int64_sym("bt_new_int64");
+  llvm::Function *newInt64 = getFunction(bt_new_int64_sym);
+  std::vector<llvm::Value *> ArgsV;
+  ArgsV.push_back( llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Val, true)) );
+  return BUILDER.CreateCall(newInt64, ArgsV, "inttmp");
 }
 
 llvm::Value *VariableExprAST::codegen() {
@@ -53,14 +57,18 @@ llvm::Value *VarDefinitionExprAST::codegen() {
 
 llvm::Value *UnaryExprAST::codegen() {
   llvm::Value *R = RHS->codegen();
-  llvm::Value *booltmp;
   if (!R)
     return LogErrorV("Unknown RHS.");
+  std::string bt_binary_int64_sym("bt_binary_int64");
+  llvm::Function *binOpInt64 = getFunction(bt_binary_int64_sym);
+  std::vector<llvm::Value *> ArgsV;
 
   switch (Op) {
   case tok_not:
-    booltmp = BUILDER.CreateICmpEQ(R, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "nottmp");
-    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+    ArgsV.push_back( llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Op, true)) );
+    ArgsV.push_back( R );
+    ArgsV.push_back( R );
+    return BUILDER.CreateCall(binOpInt64, ArgsV, "boptmp");
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");
   }
@@ -69,36 +77,26 @@ llvm::Value *UnaryExprAST::codegen() {
 llvm::Value *BinaryExprAST::codegen() {
   llvm::Value *L = LHS->codegen();
   llvm::Value *R = RHS->codegen();
-  llvm::Value *booltmp, *tmp;
   if (!L || !R)
     return LogErrorV("Unknown LHS or RHS.");
+  std::string bt_binary_int64_sym("bt_binary_int64");
+  llvm::Function *binOpInt64 = getFunction(bt_binary_int64_sym);
+  std::vector<llvm::Value *> ArgsV;
 
   switch (Op) {
   case tok_add:
-    return BUILDER.CreateAdd(L, R, "addtmp");
   case tok_sub:
-    return BUILDER.CreateSub(L, R, "subtmp");
   case tok_mul:
-    return BUILDER.CreateMul(L, R, "multmp");
   case tok_div:
-    return BUILDER.CreateSDiv(L, R, "multmp");
   case tok_eq:
-    booltmp = BUILDER.CreateICmpEQ(L, R, "eqtmp");
-    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   case tok_gt:
-    booltmp = BUILDER.CreateICmpSGT(L, R, "gttmp");
-    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   case tok_lt:
-    booltmp = BUILDER.CreateICmpSLT(L, R, "lttmp");
-    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   case tok_and:
-    tmp = BUILDER.CreateAnd(L, R, "andtmp");
-    booltmp = BUILDER.CreateICmpNE(tmp, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "andbooltmp");
-    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
   case tok_or:
-    tmp = BUILDER.CreateOr(L, R, "ortmp");
-    booltmp = BUILDER.CreateICmpNE(tmp, llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), "orbooltmp");
-    return BUILDER.CreateZExt(booltmp, llvm::Type::getInt32Ty(LLVM_CONTEXT));
+    ArgsV.push_back( llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Op, true)) );
+    ArgsV.push_back( L );
+    ArgsV.push_back( R );
+    return BUILDER.CreateCall(binOpInt64, ArgsV, "boptmp");
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");
   }
@@ -106,9 +104,14 @@ llvm::Value *BinaryExprAST::codegen() {
 
 llvm::Value *IfExprAST::codegen() {
   // return LogErrorV("IfExprAST::codegen() not implemented yet.");
-  llvm::Value* pred = Pred->codegen();
-  if (!pred)
+  std::string bt_as_bool_sym("bt_as_bool");
+  llvm::Value* cond = Pred->codegen();
+  if (!cond)
     return LogErrorV("invalid predicate in If.");
+  llvm::Function *test = getFunction(bt_as_bool_sym);
+  std::vector<llvm::Value *> ArgsV;
+  ArgsV.push_back( cond );
+  llvm::Value* pred = BUILDER.CreateCall(test, ArgsV, "predtmp");
 
   // Convert condition to a bool by comparing equal to 0.
   pred = BUILDER.CreateICmpNE(
@@ -146,7 +149,7 @@ llvm::Value *IfExprAST::codegen() {
   TheFunction->getBasicBlockList().push_back(mergeBB);
   BUILDER.SetInsertPoint(mergeBB);
   llvm::PHINode *PN =
-    BUILDER.CreatePHI(llvm::Type::getInt32Ty(LLVM_CONTEXT), 2, "phi");
+    BUILDER.CreatePHI(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), 2, "phi");
 
   PN->addIncoming(thenV, thenBB);
   PN->addIncoming(elseV, elseBB);
@@ -175,9 +178,9 @@ llvm::Value *CallExprAST::codegen() {
 
 llvm::Function *PrototypeAST::codegen() {
   // Make the function type:  double(double,double) etc.
-  std::vector<llvm::Type *> Int32s(Args.size(), llvm::Type::getInt32Ty(LLVM_CONTEXT));
+  std::vector<llvm::Type *> I8Ptrs(Args.size(), llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
   llvm::FunctionType *FT =
-      llvm::FunctionType::get(llvm::Type::getInt32Ty(LLVM_CONTEXT), Int32s, false);
+      llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), I8Ptrs, false);
 
   llvm::Function *F =
       llvm::Function::Create(FT, llvm::Function::ExternalLinkage, Name, MODULE.get());
@@ -223,4 +226,66 @@ llvm::Value *FunctionAST::codegen() {
   // Error reading body, remove function.
   TheFunction->eraseFromParent();
   return nullptr;
+}
+
+void init_butterfly_per_module(void) {
+  // printf("init start...\n");
+
+  std::string bt_new_int64_sym("bt_new_int64"), num_sym("num");
+  std::string bt_binary_int64_sym("bt_binary_int64"), op_sym("op"), lhs_sym("lhs"), rhs_sym("rhs");
+  std::string bt_as_bool_sym("bt_as_bool"), cond_sym("cond");
+  llvm::FunctionType *FT = nullptr;
+  llvm::Function *F = nullptr;
+  unsigned Idx = 0;
+
+  std::vector<std::string> formals_name;
+  std::vector<llvm::Type *> formals_type;
+
+  // initialize bt_new_int64
+  formals_name.push_back(num_sym);
+  formals_type.push_back( llvm::Type::getInt32Ty(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_new_int64_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_binary_int64
+  formals_name.push_back(op_sym);
+  formals_name.push_back(lhs_sym);
+  formals_name.push_back(rhs_sym);
+  formals_type.push_back( llvm::Type::getInt32Ty(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_binary_int64_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_new_int64
+  formals_name.push_back(cond_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_as_bool_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // printf("init successful!\n");
+  // MODULE->dump();
+
+  return;
 }

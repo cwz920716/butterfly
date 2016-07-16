@@ -19,6 +19,8 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "../include/KaleidoscopeJIT.h"
 
+#include "objects.h"
+
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
 enum token_type {
