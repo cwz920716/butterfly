@@ -15,6 +15,7 @@ std::string token_desc[] = {
                 "tok_lambda",
                 "tok_if",
                 "tok_cond",
+                "tok_begin",
                 "tok_open",
                 "tok_close",
                 "tok_add",
@@ -27,6 +28,7 @@ std::string token_desc[] = {
                 "tok_and",
                 "tok_or",
                 "tok_not",
+                "tok_nil",
                 "tok_symbol",
                 "tok_integer",
                 "tok_space",
@@ -114,12 +116,16 @@ token_type getIdToken(const char *text, int *len) {
     return tok_if;
   if (equalsKeyword(text, n, "cond"))
     return tok_cond;
+  if (equalsKeyword(text, n, "begin"))
+    return tok_begin;
   if (equalsKeyword(text, n, "and"))
     return tok_and;
   if (equalsKeyword(text, n, "or"))
     return tok_or;
   if (equalsKeyword(text, n, "not"))
     return tok_not;
+  if (equalsKeyword(text, n, "nil"))
+    return tok_nil;
 
   return tok_symbol;
 }

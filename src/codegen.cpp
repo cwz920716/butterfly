@@ -43,6 +43,10 @@ llvm::Value *IntExprAST::codegen() {
   return BUILDER.CreateCall(newInt64, ArgsV, "inttmp");
 }
 
+llvm::Value *NilExprAST::codegen() {
+  return llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
+}
+
 llvm::Value *VariableExprAST::codegen() {
   // Look this variable up in the function.
   llvm::Value *V = NamedValues[Name];
@@ -156,6 +160,18 @@ llvm::Value *IfExprAST::codegen() {
   return PN;
 }
 
+llvm::Value *BeginExprAST::codegen() {
+  llvm::Value *ret = nullptr;
+  for (unsigned i = 0, e = Exprs.size(); i != e; ++i) {
+    ret = Exprs[i]->codegen();
+    if (!ret)
+      return LogErrorV("Invalid begin-clause.");
+  }
+
+  if (!ret) return LogErrorV("empty begin-clause.");
+  return ret;
+}
+
 llvm::Value *CallExprAST::codegen() {
   // Look up the name in the global module table.
   llvm::Function *CalleeF = getFunction(Callee);
@@ -212,7 +228,14 @@ llvm::Value *FunctionAST::codegen() {
   for (auto &Arg : TheFunction->args())
     NamedValues[Arg.getName()] = &Arg;
 
-  if (llvm::Value *RetVal = Body->codegen()) {
+  llvm::Value *RetVal = nullptr;
+  for (unsigned i = 0, e = Body.size(); i != e; ++i) {
+    RetVal = Body[i]->codegen();
+    if (!RetVal)
+      return LogErrorV("Invalid body expr.");
+  }
+
+  if (RetVal) {
     // Finish off the function.
     BUILDER.CreateRet(RetVal);
     FPM->run(*TheFunction);

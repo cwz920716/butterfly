@@ -23,6 +23,14 @@ public:
   llvm::Value *codegen() override;
 };
 
+/// IntExprAST - Expression class for numeric literals like "1.0".
+class NilExprAST : public ExprAST {
+public:
+  NilExprAST() {}
+  void print() override { std::cout << "nil"; }
+  llvm::Value *codegen() override;
+};
+
 /// VariableExprAST - Expression class for referencing a variable, like "a".
 class VariableExprAST : public ExprAST {
   std::string Name;
@@ -104,6 +112,24 @@ public:
   llvm::Value *codegen() override;
 };
 
+class BeginExprAST: public ExprAST {
+  std::vector<std::unique_ptr<ExprAST>> Exprs;
+
+public:
+  BeginExprAST(std::vector<std::unique_ptr<ExprAST>> exprs)
+      : Exprs(std::move(exprs)) {}
+
+  void print() override { 
+    std::cout << "(Begin " << "Exprs: {"; 
+    // Callee->print(); std::cout << ": ";
+    for (auto &e : Exprs) {
+      e->print(); std::cout << ", "; 
+    }
+    std::cout << "})" << std::endl;
+  }
+  llvm::Value *codegen() override;
+};
+
 /// CallExprAST - Expression class for function calls.
 class CallExprAST : public ExprAST {
   std::string Callee; // std::unique_ptr<ExprAST> Callee;
@@ -154,18 +180,20 @@ public:
 /// FunctionAST - This class represents a function definition itself.
 class FunctionAST : public ExprAST {
   std::unique_ptr<PrototypeAST> Proto;
-  std::unique_ptr<ExprAST> Body;
+  std::vector<std::unique_ptr<ExprAST>> Body;
 
 public:
   FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-              std::unique_ptr<ExprAST> Body)
+              std::vector<std::unique_ptr<ExprAST>> Body)
     : Proto(std::move(Proto)), Body(std::move(Body)) {}
 
   bool isaFunction() override { return true; }
   void print() override { 
     std::cout << "(function "; 
     Proto->print(); std::cout << ", "; 
-    Body->print();
+    for (auto &e : Body) {
+      e->print(); std::cout << ", "; 
+    }
     std::cout << ")" << std::endl;
   }
   llvm::Value *codegen() override;

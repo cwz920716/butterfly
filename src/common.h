@@ -32,6 +32,7 @@ enum token_type {
   tok_lambda,
   tok_if,
   tok_cond,
+  tok_begin,
 
   // operators
   tok_open,
@@ -46,6 +47,8 @@ enum token_type {
   tok_and,
   tok_or,
   tok_not,
+
+  tok_nil,
 
   // primitive types
   tok_symbol,

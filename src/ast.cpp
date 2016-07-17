@@ -50,12 +50,16 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
 /// primary
 ///   ::= id_expr
 ///   ::= int_expr
+///   ::= nil
 static std::unique_ptr<ExprAST> ParsePrimary() {
   switch (CUR_TOK.type) {
   case tok_symbol:
     return ParseIdentifierExpr();
   case tok_integer:
     return ParseIntExpr();
+  case tok_nil:
+    getNextToken(); // eat nil
+    return llvm::make_unique<NilExprAST>();
   default:
     std::cout << "when parsing " << CUR_TOK.literal;
     return LogError("unknown token when expecting a primary");
@@ -105,7 +109,7 @@ static std::unique_ptr<ExprAST> ParseIfExpr() {
 
 std::unique_ptr<ExprAST> CondExprAST::lower() {
   print();
-  std::unique_ptr<ExprAST> base_else = llvm::make_unique<IntExprAST>(0);
+  std::unique_ptr<ExprAST> base_else = llvm::make_unique<NilExprAST>();
 
   while (!Preds.empty() && !Exprs.empty()) {
     auto pred = std::move(Preds.back());
@@ -144,10 +148,22 @@ static std::unique_ptr<ExprAST> ParseCondExpr() {
   return lowered;
 }
 
+static std::unique_ptr<ExprAST> ParseBeginExpr() {
+  getNextToken(); // eat begin
+  std::vector<std::unique_ptr<ExprAST>> exprs;
+  while (CUR_TOK.type != tok_close) {
+    if (auto expr = ParseExpression()) {
+      exprs.push_back(std::move(expr));
+    } else
+      return LogError("non expr as expr at begin");
+  }
+
+  return llvm::make_unique<BeginExprAST>(std::move(exprs));
+}
+
 /// Definition
 ///   ::= id expr
 ///   ::= (id formals) body
-/// for now, body is a single expression
 static std::unique_ptr<ExprAST> ParseDefExpr() {
   getNextToken(); // eat define
   if (CUR_TOK.type == tok_open) {
@@ -164,7 +180,13 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
     }
     getNextToken(); // eat close;
     auto proto = llvm::make_unique<PrototypeAST>(FunctName, formals);
-    auto body= ParseExpression(); // parse body
+    std::vector<std::unique_ptr<ExprAST>> body; // parse body
+    while (CUR_TOK.type != tok_close) {
+      if (auto expr = ParseExpression()) {
+        body.push_back(std::move(expr));
+      } else
+        return LogError("non expr as expr at function body");
+    }
     return llvm::make_unique<FunctionAST>(std::move(proto), std::move(body));
   } else {
     // variable definition
@@ -180,8 +202,9 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
 ///   ::= symbol expr*  (* static dispatch *)
-///   ::= (list) expr*  (* dynamic dispatch *)
+///   ::= (list) expr*  (* dynamic dispatch: closure or function ptr *)
 ///   ::= cond ((pred1) (expr1))+
+///   ::= begin expr*
 static std::unique_ptr<ExprAST> ParseList() {
   switch (CUR_TOK.type) {
   case tok_add:
@@ -204,6 +227,8 @@ static std::unique_ptr<ExprAST> ParseList() {
     return llvm::make_unique<VariableExprAST>(std::string("nil"));
   case tok_cond:
     return ParseCondExpr();
+  case tok_begin:
+    return ParseBeginExpr();
   default:
     // application expr
     // auto Callee = ParseExpression();
@@ -259,7 +284,9 @@ void HandleCommand() {
       // Make an anonymous proto.
       auto proto = llvm::make_unique<PrototypeAST>("__anon_expr",
                                                    std::vector<std::string>());
-      auto fn = llvm::make_unique<FunctionAST>(std::move(proto), std::move(ast));
+      std::vector<std::unique_ptr<ExprAST>> body;
+      body.push_back(std::move(ast));
+      auto fn = llvm::make_unique<FunctionAST>(std::move(proto), std::move(body));
       fn->codegen()->dump();
 
       // JIT the module containing the anonymous expression, keeping a handle so

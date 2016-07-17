@@ -86,7 +86,8 @@ int32_t bt_as_bool(char *cond) {
   return 1;
 }
 
-int bt_is_int64(bt_value_t *val) {
+bool bt_is_int64(bt_value_t *val) {
+  if (!val) return false;
   return val->type == I64Ty && val->size == 1;
 }
 

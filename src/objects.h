@@ -29,7 +29,7 @@ extern "C" char *bt_new_int64(int num);
 extern "C" char *bt_binary_int64(int op, char *lhs, char *rhs);
 extern "C" int32_t bt_as_bool(char *cond);
 
-int bt_is_int64(bt_value_t *val);
+bool bt_is_int64(bt_value_t *val);
 int64_t bt_to_int64(bt_value_t *val);
 
 void init_butterfly(void);

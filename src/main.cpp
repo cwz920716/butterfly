@@ -51,11 +51,12 @@ int main() {
   llvm::InitializeNativeTargetAsmParser();
   llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
 
-  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)\n(if 1 2 3)";
-  const char *test_scm2 = "1\n2\n3\n123\n(* 2 3)\n(and 1 2)\n(not 0)\n(not (and (+ 1 2) (* 4 5)))\n(if (> 2 12) 1 -1)";
+  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)";
+  const char *test_scm2 = "(begin nil 1 (/ 3 2) (and (> 1 0) (< 1 0)) nil)\n";
+  const char *test_scm3 = "(define (pos-neg x) ( cond ((= x 0) 1) ((> x 0) (- x)) ))\n(pos-neg -12)\n(pos-neg 102)\n(pos-neg 0)";
 
   // initialize
-  Driver *driver = Driver::instance(test_scm);
+  Driver *driver = Driver::instance(test_scm3);
   driver->Initialize();
 
   // Prime the first token.
