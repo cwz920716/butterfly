@@ -44,14 +44,29 @@ public:
 /// VarDefinitionExprAST - Expression class for referencing a variable, like "a".
 class VarDefinitionExprAST : public ExprAST {
   std::string Name;
-  std::unique_ptr<ExprAST> Value;
+  std::unique_ptr<ExprAST> Init;
 
 public:
-  VarDefinitionExprAST(const std::string &Name, std::unique_ptr<ExprAST> value) : Name(Name), Value(std::move(value)) {}
+  VarDefinitionExprAST(const std::string &Name, std::unique_ptr<ExprAST> init) : Name(Name), Init(std::move(init)) {}
   void print() override { 
     std::cout << "(var " << Name << " <- ";
-    Value->print();
-    std::cout << std::endl; 
+    Init->print();
+    std::cout << ")";
+  }
+  llvm::Value *codegen() override;
+};
+
+/// VarSetExprAST - Expression class for referencing a variable, like "a".
+class VarSetExprAST : public ExprAST {
+  std::string Name;
+  std::unique_ptr<ExprAST> Expr;
+
+public:
+  VarSetExprAST(const std::string &name, std::unique_ptr<ExprAST> expr) : Name(name), Expr(std::move(expr)) {}
+  void print() override { 
+    std::cout << "(set! " << Name << " ";
+    Expr->print();
+    std::cout << ")";
   }
   llvm::Value *codegen() override;
 };
@@ -177,15 +192,24 @@ public:
   llvm::Function *codegen();
 };
 
+class FunctionScope {
+public:
+  // scope of function local
+  std::map<std::string, llvm::AllocaInst *> NamedValues;
+  llvm::Function *TheFunction;
+  FunctionScope() {}
+};
+
 /// FunctionAST - This class represents a function definition itself.
 class FunctionAST : public ExprAST {
   std::unique_ptr<PrototypeAST> Proto;
   std::vector<std::unique_ptr<ExprAST>> Body;
+  FunctionScope Scope;
 
 public:
   FunctionAST(std::unique_ptr<PrototypeAST> Proto,
               std::vector<std::unique_ptr<ExprAST>> Body)
-    : Proto(std::move(Proto)), Body(std::move(Body)) {}
+    : Proto(std::move(Proto)), Body(std::move(Body)), Scope() {}
 
   bool isaFunction() override { return true; }
   void print() override { 
@@ -197,6 +221,15 @@ public:
     std::cout << ")" << std::endl;
   }
   llvm::Value *codegen() override;
+
+  // before generating function def, a few codegen pass have to be invoked
+  // including but not limited to:
+  //   lambda, let, processing
+  //   closure reducing
+  //   local var allocation
+  //   gc frame setup
+
+  void allocaArgPass(void);
 };
 
 /**************************************************************************************************
@@ -250,13 +283,14 @@ class Driver {
 public:
   Lexer lex;
   const char *source;
+  llvm::IRBuilder<> Builder;
   Token CurTok;
   llvm::LLVMContext TheContext;
-  llvm::IRBuilder<> Builder;
   std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
   std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
   std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
+  FunctionScope *TheScope;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 
 

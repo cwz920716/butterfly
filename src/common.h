@@ -29,6 +29,7 @@ enum token_type {
 
   // commands
   tok_define,
+  tok_set,
   tok_lambda,
   tok_if,
   tok_cond,

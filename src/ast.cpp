@@ -197,11 +197,20 @@ static std::unique_ptr<ExprAST> ParseDefExpr() {
   }
 }
 
+static std::unique_ptr<ExprAST> ParseSetExpr() {
+  getNextToken(); // eat set!
+  std::string IdName = CUR_TOK.literal;
+  getNextToken(); // eat identifier
+  auto Result = ParseExpression();
+  return llvm::make_unique<VarSetExprAST>(IdName, std::move(Result));
+}
+
 /// list
 ///   ::= BinOp expr1 expr2
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
-///   ::= symbol expr*  (* static dispatch *)
+///   ::= set! id expr
+///   ::= symbol expr*  (* static dispatch: function call or closure call *)
 ///   ::= (list) expr*  (* dynamic dispatch: closure or function ptr *)
 ///   ::= cond ((pred1) (expr1))+
 ///   ::= begin expr*
@@ -223,6 +232,8 @@ static std::unique_ptr<ExprAST> ParseList() {
     return ParseIfExpr();
   case tok_define:
     return ParseDefExpr();
+  case tok_set:
+    return ParseSetExpr();
   case tok_close:
     return llvm::make_unique<VariableExprAST>(std::string("nil"));
   case tok_cond:

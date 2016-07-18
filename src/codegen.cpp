@@ -10,14 +10,21 @@
 #define BUILDER (Driver::instance()->Builder)
 #define MODULE (Driver::instance()->TheModule)
 #define FPM (Driver::instance()->TheFPM)
+#define SCOPE (Driver::instance()->TheScope)
 #define FUNCTIONPROTOS (Driver::instance()->FunctionProtos)
-
-// for now, we only keep one scope, which is the scope of function local
-std::map<std::string, llvm::Value *> NamedValues;
 
 llvm::Value *LogErrorV(const char *Str) {
   LogError(Str);
   return nullptr;
+}
+
+/// CreateEntryBlockAlloca - Create an alloca instruction in the entry block of
+/// the function.  This is used for mutable variables etc.
+llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction,
+                                   const std::string &VarName) {
+  llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(),
+                   TheFunction->getEntryBlock().begin());
+  return TmpB.CreateAlloca(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), nullptr, VarName);
 }
 
 llvm::Function *getFunction(std::string Name) {
@@ -49,14 +56,37 @@ llvm::Value *NilExprAST::codegen() {
 
 llvm::Value *VariableExprAST::codegen() {
   // Look this variable up in the function.
-  llvm::Value *V = NamedValues[Name];
+  llvm::Value *V = SCOPE->NamedValues[Name];
   if (!V)
     return LogErrorV("Unknown variable name");
-  return V;
+
+  // Load the value.
+  return BUILDER.CreateLoad(V, Name.c_str());
 }
 
 llvm::Value *VarDefinitionExprAST::codegen() {
-  return LogErrorV("VarDefinitionExprAST::codegen() not implemented yet.");
+  // VarDef is a alloca inst which will be allocated at entry block, hence here we only return nil
+  // normal scheme code will not rely on the return value of defineVar
+  llvm::Value *InitVal = Init->codegen();
+  if (!InitVal)
+    return LogErrorV("Unknown variable initialization");
+
+  llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(SCOPE->TheFunction, Name);
+  BUILDER.CreateStore(InitVal, Alloca);
+  SCOPE->NamedValues[Name] = Alloca;
+  return llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
+}
+
+llvm::Value *VarSetExprAST::codegen() {
+  // VarDef is a alloca inst which will be allocated at entry block, hence here we only return nil
+  // normal scheme code will not rely on the return value of defineVar
+  llvm::Value *Val = Expr->codegen();
+  if (!Val)
+    return LogErrorV("Unknown variable assignment");
+
+  llvm::Value *Variable = SCOPE->NamedValues[Name];
+  BUILDER.CreateStore(Val, Variable);
+  return Val;
 }
 
 llvm::Value *UnaryExprAST::codegen() {
@@ -209,6 +239,21 @@ llvm::Function *PrototypeAST::codegen() {
   return F;
 }
 
+void FunctionAST::allocaArgPass() {
+  llvm::Function *TheFunction = Scope.TheFunction;
+
+  for (auto &Arg : TheFunction->args()) {
+    // Create an alloca for this variable.
+    llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
+
+    // Store the initial value into the alloca.
+    BUILDER.CreateStore(&Arg, Alloca);
+
+    // Add arguments to variable symbol table.
+    Scope.NamedValues[Arg.getName()] = Alloca;
+  }
+}
+
 llvm::Value *FunctionAST::codegen() {
   // Transfer ownership of the prototype to the FunctionProtos map, but keep a
   // reference to it for use below.
@@ -219,14 +264,16 @@ llvm::Value *FunctionAST::codegen() {
   if (!TheFunction)
     return nullptr;
 
+  // Setup local function scope, make sure it is visible from anywhere
+  Scope.TheFunction = TheFunction;
+  SCOPE = &Scope;
+
   // Create a new basic block to start insertion into.
   llvm::BasicBlock *BB = llvm::BasicBlock::Create(LLVM_CONTEXT, "entry", TheFunction);
   BUILDER.SetInsertPoint(BB);
 
   // Record the function arguments in the NamedValues map.
-  NamedValues.clear();
-  for (auto &Arg : TheFunction->args())
-    NamedValues[Arg.getName()] = &Arg;
+  allocaArgPass();
 
   llvm::Value *RetVal = nullptr;
   for (unsigned i = 0, e = Body.size(); i != e; ++i) {
