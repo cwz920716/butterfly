@@ -189,6 +189,7 @@ public:
     std::cout << ")";
   }
   const std::string &getName() const { return Name; }
+  int nargs() { return Args.size(); }
   llvm::Function *codegen();
 };
 
@@ -289,7 +290,7 @@ public:
   std::unique_ptr<llvm::Module> TheModule;
   std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
   std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
-  std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
+  std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos; // global function namespace
   FunctionScope *TheScope;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 

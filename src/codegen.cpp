@@ -55,6 +55,21 @@ llvm::Value *NilExprAST::codegen() {
 }
 
 llvm::Value *VariableExprAST::codegen() {
+  // check if this varaible is global var
+  // check if this variable is a function name
+  if (FUNCTIONPROTOS.count(Name) > 0) {
+    // this is a global function
+    auto F = getFunction(Name);
+    std::string bt_new_fptr_sym("bt_new_fptr");
+    llvm::Value *FP = BUILDER.CreateBitCast(F, llvm::Type::getInt8PtrTy(LLVM_CONTEXT), "fptr");
+    llvm::Value *Nargs = llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, (int) F->arg_size(), true));
+    llvm::Function *newFPtr = getFunction(bt_new_fptr_sym);
+    std::vector<llvm::Value *> ArgsV;
+    ArgsV.push_back(FP); 
+    ArgsV.push_back(Nargs);
+    return BUILDER.CreateCall(newFPtr, ArgsV, "fptmp");
+  }
+
   // Look this variable up in the function.
   llvm::Value *V = SCOPE->NamedValues[Name];
   if (!V)
@@ -94,7 +109,9 @@ llvm::Value *UnaryExprAST::codegen() {
   if (!R)
     return LogErrorV("Unknown RHS.");
   std::string bt_binary_int64_sym("bt_binary_int64");
+  std::string bt_box_sym("bt_box");
   llvm::Function *binOpInt64 = getFunction(bt_binary_int64_sym);
+  llvm::Function *box = getFunction(bt_box_sym);
   std::vector<llvm::Value *> ArgsV;
 
   switch (Op) {
@@ -103,6 +120,9 @@ llvm::Value *UnaryExprAST::codegen() {
     ArgsV.push_back( R );
     ArgsV.push_back( R );
     return BUILDER.CreateCall(binOpInt64, ArgsV, "boptmp");
+  case tok_box:
+    ArgsV.push_back( R );
+    return BUILDER.CreateCall(box, ArgsV, "boxtmp");
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");
   }
@@ -205,21 +225,64 @@ llvm::Value *BeginExprAST::codegen() {
 llvm::Value *CallExprAST::codegen() {
   // Look up the name in the global module table.
   llvm::Function *CalleeF = getFunction(Callee);
-  if (!CalleeF)
-    return LogErrorV("Unknown function referenced");
-
-  // If argument mismatch error.
-  if (CalleeF->arg_size() != Args.size())
-    return LogErrorV("Incorrect # arguments passed");
-
+  std::string bt_get_callable_sym("bt_get_callable");
+  std::string bt_error_sym("bt_error");
   std::vector<llvm::Value *> ArgsV;
-  for (unsigned i = 0, e = Args.size(); i != e; ++i) {
-    ArgsV.push_back(Args[i]->codegen());
-    if (!ArgsV.back())
-      return nullptr;
-  }
 
-  return BUILDER.CreateCall(CalleeF, ArgsV, "calltmp");
+  if (!CalleeF) {
+    // if not in global module, then test if it is a local var, which could be fptr or closure
+    llvm::Value *V = SCOPE->NamedValues[Callee];
+    if (!V)
+      return LogErrorV("Unknown function referenced");
+    llvm::Value *Callable = BUILDER.CreateLoad(V, Callee.c_str());
+    // test callable...
+    llvm::Function *getCallable = getFunction(bt_get_callable_sym);
+    ArgsV.push_back(Callable);
+    llvm::Value *maybeFP = BUILDER.CreateCall(getCallable, ArgsV, "fptr");
+    ArgsV.clear();
+    llvm::Value *pred = BUILDER.CreateICmpEQ(maybeFP, 
+                                             llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT)), "fptest");
+
+    llvm::Function *TheFunction = BUILDER.GetInsertBlock()->getParent();
+    llvm::BasicBlock *badBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "badFP", TheFunction);
+    llvm::BasicBlock *afterBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "after");
+
+    BUILDER.CreateCondBr(pred, badBB, afterBB);
+    // Emit then value.
+    BUILDER.SetInsertPoint(badBB);
+    llvm::Function *error = getFunction(bt_error_sym);
+    BUILDER.CreateCall(error, ArgsV, "error");
+    BUILDER.CreateBr(afterBB);
+
+    // Emit merge block.
+    TheFunction->getBasicBlockList().push_back(afterBB);
+    BUILDER.SetInsertPoint(afterBB);
+    // Make the function type:  double(double,double) etc.
+    std::vector<llvm::Type *> I8Ptrs(Args.size(), llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
+    llvm::FunctionType *FT =
+        llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), I8Ptrs, false);
+    llvm::Value *FP = BUILDER.CreateBitCast(maybeFP, llvm::PointerType::get(FT, 0), "fptr");
+
+    for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+      ArgsV.push_back(Args[i]->codegen());
+      if (!ArgsV.back())
+        return nullptr;
+    }
+
+    return BUILDER.CreateCall(FP, ArgsV, "calltmp");
+  } else {
+    // If argument mismatch error.
+    if (CalleeF->arg_size() != Args.size())
+      return LogErrorV("Incorrect # arguments passed");
+
+    for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+      ArgsV.push_back(Args[i]->codegen());
+      if (!ArgsV.back())
+        return nullptr;
+    }
+
+    return BUILDER.CreateCall(CalleeF, ArgsV, "calltmp");
+  }
 }
 
 llvm::Function *PrototypeAST::codegen() {
@@ -302,8 +365,12 @@ void init_butterfly_per_module(void) {
   // printf("init start...\n");
 
   std::string bt_new_int64_sym("bt_new_int64"), num_sym("num");
+  std::string bt_new_fptr_sym("bt_new_fptr"), fp_sym("fp"), nargs_sym("nargs");
+  std::string bt_box_sym("bt_box");
+  std::string bt_get_callable_sym("bt_get_callable"), val_sym("val");
   std::string bt_binary_int64_sym("bt_binary_int64"), op_sym("op"), lhs_sym("lhs"), rhs_sym("rhs");
   std::string bt_as_bool_sym("bt_as_bool"), cond_sym("cond");
+  std::string bt_error_sym("bt_error");
   llvm::FunctionType *FT = nullptr;
   llvm::Function *F = nullptr;
   unsigned Idx = 0;
@@ -316,6 +383,47 @@ void init_butterfly_per_module(void) {
   formals_type.push_back( llvm::Type::getInt32Ty(LLVM_CONTEXT) );
   FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
   F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_new_int64_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_new_fptr
+  formals_name.push_back(fp_sym);
+  formals_name.push_back(nargs_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::Type::getInt32Ty(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_new_fptr_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_box
+  formals_name.push_back(val_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_box_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_get_callable
+  formals_name.push_back(val_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_get_callable_sym, MODULE.get());
   // Set names for all arguments.
   Idx = 0;
   for (auto &Arg : F->args())
@@ -353,6 +461,10 @@ void init_butterfly_per_module(void) {
   // cleanup 
   formals_name.clear();
   formals_type.clear();
+
+  // initialize bt_error
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_error_sym, MODULE.get());
 
   // printf("init successful!\n");
   // MODULE->dump();

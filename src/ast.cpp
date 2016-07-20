@@ -108,7 +108,7 @@ static std::unique_ptr<ExprAST> ParseIfExpr() {
 }
 
 std::unique_ptr<ExprAST> CondExprAST::lower() {
-  print();
+  // print();
   std::unique_ptr<ExprAST> base_else = llvm::make_unique<NilExprAST>();
 
   while (!Preds.empty() && !Exprs.empty()) {
@@ -210,8 +210,8 @@ static std::unique_ptr<ExprAST> ParseSetExpr() {
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
 ///   ::= set! id expr
-///   ::= symbol expr*  (* static dispatch: function call or closure call *)
-///   ::= (list) expr*  (* dynamic dispatch: closure or function ptr *)
+///   ::= symbol expr*  (* function call: could be direct function call or fptr/closure application *)
+///   ::= (list) expr*  (* function apply: closure or function ptr *)
 ///   ::= cond ((pred1) (expr1))+
 ///   ::= begin expr*
 static std::unique_ptr<ExprAST> ParseList() {
@@ -227,6 +227,7 @@ static std::unique_ptr<ExprAST> ParseList() {
   case tok_or:
     return ParseBinOpExpr();
   case tok_not:
+  case tok_box:
     return ParseUnaryOpExpr();
   case tok_if:
     return ParseIfExpr();

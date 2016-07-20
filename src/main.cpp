@@ -60,9 +60,13 @@ int main() {
   const char *test_scm3 = "(define (pos-neg x) ( cond ((= x 0) 1) ((> x 0) (- x)) ))\n(pos-neg -12)\n(pos-neg 102)\n(pos-neg 0)";
   const char *test_scm4 = "(define x 0)\n(define (quad-square x) (define y (* x x)) (* y y))\n(quad-square 3)\n(quad-square -3)";
   const char *test_scm5 = "(define (square-1 x) (define y (- x 1)) (define r y) (set! y (+ x 1)) (set! r (* r y)) r )\n(square-1 1)\n(square-1 2)\n(square-1 3)";
+  const char *test_scm6 = "(define (square x) (* x x))\n\n(define (nothing x) x)\n"
+                          "(define (use idx y) (define fp ( cond ((= idx 0) square) ((= 0 0) nothing) )) (fp y))\n"
+                          "(use 0 -2)\n(use 0 1)\n(use 1 -9)\n(use 0 -9)";
+  const char *test_scm7 = "(define (square x) (* x x))\n(box 7)\n(box square)\n(box (+ 1 2))";
 
   // initialize
-  Driver *driver = Driver::instance(test_scm5);
+  Driver *driver = Driver::instance(test_scm6);
   driver->Initialize();
 
   // Prime the first token.

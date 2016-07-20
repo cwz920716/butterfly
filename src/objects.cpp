@@ -10,8 +10,8 @@ extern "C"
 char *bt_new_int64(int num) {
   // for now, just use malloc
   // gc support will be added in future
-  int64_t num_l = num;
-  bt_value_t *ptr = (bt_value_t *)aligned_alloc(8, sizeof(bt_value_t) + sizeof(uint64_t));
+  uintptr_t num_l = num;
+  bt_value_t *ptr = (bt_value_t *)aligned_alloc(8, sizeof(bt_value_t) + sizeof(bt_value_t *));
   if (!ptr) {
     // allocation failed. should perform gc
     // for now, return Null
@@ -86,9 +86,101 @@ int32_t bt_as_bool(char *cond) {
   return 1;
 }
 
+extern "C"
+char *bt_new_fptr(char *fp, int nargs) {
+  uintptr_t nargs_p = nargs;
+  bt_value_t *ptr = (bt_value_t *)aligned_alloc(8, sizeof(bt_value_t) + sizeof(bt_value_t *) * 2);
+  if (!ptr) {
+    // allocation failed. should perform gc
+    // for now, return Null
+    return LogErrorN("alloc failed.");
+  }
+
+  ptr->type = FunctionRefTy;
+  ptr->size = 2;
+  bt_value_t **data = bt_value_data(ptr);
+  data[0] = (bt_value_t *) fp;
+  data[1] = (bt_value_t *) nargs_p;
+
+  return (char *) ptr;
+}
+
+extern "C" 
+char *bt_get_callable(char *val) {
+  bt_value_t *fptr = (bt_value_t *) val;
+  bt_value_t **data;
+
+  if (bt_is_fptr(fptr)) {
+    data = bt_value_data(fptr);
+    return (char *) data[0];
+  }
+
+  return LogErrorN("not a callable object.");
+}
+
+extern "C" 
+char *bt_box(char *val) {
+  bt_value_t *ref = (bt_value_t *) val;
+  bt_value_t *ptr = (bt_value_t *)aligned_alloc(8, sizeof(bt_value_t) + sizeof(bt_value_t *));
+  if (!ptr) {
+    // allocation failed. should perform gc
+    // for now, return Null
+    return LogErrorN("alloc failed.");
+  }
+
+  ptr->type = BoxTy;
+  ptr->size = 1;
+  bt_value_t **data = bt_value_data(ptr);
+  data[0] = ref;
+
+  return (char *) ptr;
+}
+
+extern "C" 
+char *bt_unbox(char *box) {
+  bt_value_t *bt_val = (bt_value_t *) box;
+  bt_value_t **data;
+
+  if (bt_is_box(bt_val)) {
+    data = bt_value_data(bt_val);
+    return (char *) data[0];
+  }
+
+  return LogErrorN("not a box object.");
+}
+
+extern "C" 
+char *bt_set_box(char *box, char *new_val) {
+  bt_value_t *bt_val = (bt_value_t *) box;
+  bt_value_t **data;
+
+  if (bt_is_box(bt_val)) {
+    data = bt_value_data(bt_val);
+    bt_value_t *old_data = data[0];
+    data[0] = (bt_value_t *) new_val;
+    return (char *) old_data;
+  }
+
+  return LogErrorN("not a box object.");
+}
+
+extern "C" char *bt_error(void) {
+  return LogErrorN("Unknown runtime error.");
+}
+
 bool bt_is_int64(bt_value_t *val) {
   if (!val) return false;
   return val->type == I64Ty && val->size == 1;
+}
+
+bool bt_is_fptr(bt_value_t *val) {
+  if (!val) return false;
+  return val->type == FunctionRefTy && val->size == 2;
+}
+
+bool bt_is_box(bt_value_t *val) {
+  if (!val) return false;
+  return val->type == BoxTy && val->size == 1;
 }
 
 int64_t bt_to_int64(bt_value_t *val) {
