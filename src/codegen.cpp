@@ -76,17 +76,37 @@ llvm::Value *VariableExprAST::codegen() {
     return LogErrorV("Unknown variable name");
 
   // Load the value.
-  return BUILDER.CreateLoad(V, Name.c_str());
+  llvm::Value *LoadV = BUILDER.CreateLoad(V, Name.c_str());
+
+  // if this is a excaped value, e.g., it is escaped by our compiler pass
+  std::string bt_unbox_sym("bt_unbox");
+  if (SCOPE->EscapedValues.find(Name) == SCOPE->EscapedValues.end()) {
+      llvm::Function *unbox = getFunction(bt_unbox_sym);
+      std::vector<llvm::Value *> ArgsV;
+      ArgsV.push_back(LoadV);
+      LoadV = BUILDER.CreateCall(unbox, ArgsV, "boxtmp");
+  }
+
+  return LoadV;
 }
 
 llvm::Value *VarDefinitionExprAST::codegen() {
   // VarDef is a alloca inst which will be allocated at entry block, hence here we only return nil
   // normal scheme code will not rely on the return value of defineVar
+  std::string bt_box_sym("bt_box");
   llvm::Value *InitVal = Init->codegen();
   if (!InitVal)
     return LogErrorV("Unknown variable initialization");
 
   llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(SCOPE->TheFunction, Name);
+
+  if (SCOPE->EscapedValues.find(Name) == SCOPE->EscapedValues.end()) {
+      llvm::Function *box = getFunction(bt_box_sym);
+      std::vector<llvm::Value *> ArgsV;
+      ArgsV.push_back(InitVal);
+      InitVal = BUILDER.CreateCall(box, ArgsV, "boxtmp");
+  }
+
   BUILDER.CreateStore(InitVal, Alloca);
   SCOPE->NamedValues[Name] = Alloca;
   return llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
@@ -95,12 +115,24 @@ llvm::Value *VarDefinitionExprAST::codegen() {
 llvm::Value *VarSetExprAST::codegen() {
   // VarDef is a alloca inst which will be allocated at entry block, hence here we only return nil
   // normal scheme code will not rely on the return value of defineVar
+  std::string bt_set_box_sym("bt_set_box");
   llvm::Value *Val = Expr->codegen();
   if (!Val)
     return LogErrorV("Unknown variable assignment");
 
-  llvm::Value *Variable = SCOPE->NamedValues[Name];
-  BUILDER.CreateStore(Val, Variable);
+  if (SCOPE->EscapedValues.find(Name) == SCOPE->EscapedValues.end()) {
+    // if this is a escaped var, then no need to update the stack, just call bt_set_box
+    llvm::Value *Variable = SCOPE->NamedValues[Name];
+    llvm::Value *BoxedVar = BUILDER.CreateLoad(Variable, Name.c_str());
+    llvm::Function *setBox = getFunction(bt_set_box_sym);
+    std::vector<llvm::Value *> ArgsV;
+    ArgsV.push_back(BoxedVar);
+    ArgsV.push_back(Val);
+    BUILDER.CreateCall(setBox, ArgsV, "boxtmp");
+  } else {
+    llvm::Value *Variable = SCOPE->NamedValues[Name];
+    BUILDER.CreateStore(Val, Variable);
+  }
   return Val;
 }
 
@@ -304,20 +336,42 @@ llvm::Function *PrototypeAST::codegen() {
 
 void FunctionAST::allocaArgPass() {
   llvm::Function *TheFunction = Scope.TheFunction;
+  std::string bt_box_sym("bt_box");
 
   for (auto &Arg : TheFunction->args()) {
+    llvm::Value *arg = &Arg;
+
+    if (Scope.EscapedValues.find(Arg.getName()) == Scope.EscapedValues.end()) {
+      // This is a Escaped value, i.e., it will be used by some closure
+      // it must be put in a box before store 
+      llvm::Function *box = getFunction(bt_box_sym);
+      std::vector<llvm::Value *> ArgsV;
+      ArgsV.push_back(arg);
+      arg = BUILDER.CreateCall(box, ArgsV, "boxtmp");
+    }
+
     // Create an alloca for this variable.
     llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
-
     // Store the initial value into the alloca.
-    BUILDER.CreateStore(&Arg, Alloca);
-
+    BUILDER.CreateStore(arg, Alloca);
     // Add arguments to variable symbol table.
     Scope.NamedValues[Arg.getName()] = Alloca;
   }
 }
 
+// This pass is to 
+void FunctionAST::scopePass() {
+  for (auto const& Arg : Proto->Args) {
+    std::cout << "def" << Arg << std::endl;
+   //  Scope.DefinedValues.push_back(Arg);
+  }
+  
+}
+
 llvm::Value *FunctionAST::codegen() {
+  // scope pass must be first to execute!
+  scopePass();
+
   // Transfer ownership of the prototype to the FunctionProtos map, but keep a
   // reference to it for use below.
   auto &P = *Proto;
@@ -367,6 +421,8 @@ void init_butterfly_per_module(void) {
   std::string bt_new_int64_sym("bt_new_int64"), num_sym("num");
   std::string bt_new_fptr_sym("bt_new_fptr"), fp_sym("fp"), nargs_sym("nargs");
   std::string bt_box_sym("bt_box");
+  std::string bt_unbox_sym("bt_unbox"), box_sym("box");
+  std::string bt_set_box_sym("bt_set_box"), new_val_sym("new_val");
   std::string bt_get_callable_sym("bt_get_callable"), val_sym("val");
   std::string bt_binary_int64_sym("bt_binary_int64"), op_sym("op"), lhs_sym("lhs"), rhs_sym("rhs");
   std::string bt_as_bool_sym("bt_as_bool"), cond_sym("cond");
@@ -411,6 +467,34 @@ void init_butterfly_per_module(void) {
   formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
   FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
   F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_box_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_unbox
+  formals_name.push_back(box_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_unbox_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_set_box
+  formals_name.push_back(box_sym);
+  formals_name.push_back(new_val_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_set_box_sym, MODULE.get());
   // Set names for all arguments.
   Idx = 0;
   for (auto &Arg : F->args())

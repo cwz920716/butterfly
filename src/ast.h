@@ -10,6 +10,8 @@ public:
   virtual ~ExprAST() {}
   virtual void print() {}
   virtual bool isaFunction() { return false; }
+  virtual int defType() { return -1; }
+  virtual std::string defName() { return std::string(""); }
   virtual llvm::Value *codegen() { return nullptr; }
 };
 
@@ -54,6 +56,8 @@ public:
     std::cout << ")";
   }
   llvm::Value *codegen() override;
+  int defType() override { return 0; }
+  std::string defName() override { return Name; }
 };
 
 /// VarSetExprAST - Expression class for referencing a variable, like "a".
@@ -177,6 +181,7 @@ public:
 class PrototypeAST {
   std::string Name;
   std::vector<std::string> Args;
+  friend class FunctionAST;
 
 public:
   PrototypeAST(const std::string &name, std::vector<std::string> Args)
@@ -197,6 +202,11 @@ class FunctionScope {
 public:
   // scope of function local
   std::map<std::string, llvm::AllocaInst *> NamedValues;
+  std::unordered_set<std::string> EscapedValues;
+  std::vector<std::string> DefinedValues;
+  std::vector<std::string> UsedValues;
+  // closure layout, for global functions, this is a useless member
+  std::vector<std::string> EnclosedValues;
   llvm::Function *TheFunction;
   FunctionScope() {}
 };
@@ -222,6 +232,8 @@ public:
     std::cout << ")" << std::endl;
   }
   llvm::Value *codegen() override;
+  int defType() override { return 1; }
+  std::string defName() override { return Proto->Name; }
 
   // before generating function def, a few codegen pass have to be invoked
   // including but not limited to:
@@ -231,6 +243,7 @@ public:
   //   gc frame setup
 
   void allocaArgPass(void);
+  void scopePass(void);
 };
 
 /**************************************************************************************************

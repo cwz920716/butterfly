@@ -21,6 +21,9 @@
 
 #include "objects.h"
 
+#include <map>
+#include <unordered_set>
+
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
 enum token_type {

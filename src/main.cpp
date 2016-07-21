@@ -63,10 +63,17 @@ int main() {
   const char *test_scm6 = "(define (square x) (* x x))\n\n(define (nothing x) x)\n"
                           "(define (use idx y) (define fp ( cond ((= idx 0) square) ((= 0 0) nothing) )) (fp y))\n"
                           "(use 0 -2)\n(use 0 1)\n(use 1 -9)\n(use 0 -9)";
-  const char *test_scm7 = "(define (square x) (* x x))\n(box 7)\n(box square)\n(box (+ 1 2))";
+  const char *test_scm7 = "(define (withdraw balance amount)                 \
+                            (if (> balance amount)                           \
+                              (begin (set! balance (- balance amount))       \
+                                      balance)                               \
+                              -1))\n(withdraw 100 90)\n(withdraw 90 100)"
+                          ;
+
+  // printf(test_scm7);
 
   // initialize
-  Driver *driver = Driver::instance(test_scm6);
+  Driver *driver = Driver::instance(test_scm7);
   driver->Initialize();
 
   // Prime the first token.
