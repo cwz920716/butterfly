@@ -365,6 +365,10 @@ public:
 
   void Initialize(void);
 
+  bool isaGlobalName(std::string g) {
+    return Functions.count(g) > 0;
+  }
+
 private:
   Driver(const char *src): lex(src), source(src) {
   } 
