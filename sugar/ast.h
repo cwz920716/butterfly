@@ -4,6 +4,11 @@
 #include <iostream>
 #include "common.h"
 
+// forward declaration
+class FunctionAST;
+class FunctionScope;
+typedef std::map<std::string, FunctionScope *> ScopeMap;
+
 void HandleCommand();
 
 /// ExprAST - Base class for all expression nodes.
@@ -16,6 +21,8 @@ public:
   virtual std::string defName() { return std::string(""); }
 
   virtual void collectUsedNames(std::unordered_set<std::string> &use) {  }
+  
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) { return nullptr; }
 };
 
 /// IntExprAST - Expression class for numeric literals like "1.0".
@@ -43,6 +50,8 @@ public:
   void print() override { std::cout << Name; }
 
   void collectUsedNames(std::unordered_set<std::string> &use) override { use.insert(Name); }
+
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// VarDefinitionExprAST - Expression class for referencing a variable, like "a".
@@ -61,6 +70,7 @@ public:
   std::string defName() override { return Name; }
 
   void collectUsedNames(std::unordered_set<std::string> &use) override { Init->collectUsedNames(use); }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// VarSetExprAST - Expression class for referencing a variable, like "a".
@@ -79,6 +89,27 @@ public:
   void collectUsedNames(std::unordered_set<std::string> &use) override {
     use.insert(Name); 
     Expr->collectUsedNames(use); 
+  }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+};
+
+/// GetFieldExprAST - Expression class for a binary operator.
+class GetFieldExprAST : public ExprAST {
+  int idx;
+  std::unique_ptr<ExprAST> RHS;
+
+public:
+  GetFieldExprAST(int idx, std::unique_ptr<ExprAST> RHS)
+    : idx(idx), RHS(std::move(RHS)) {}
+
+  void print() override { 
+    std::cout << "(getfield " << idx << " ";
+    RHS->print();
+    std::cout << ")";
+  }
+
+  void collectUsedNames(std::unordered_set<std::string> &use) override {
+    RHS->collectUsedNames(use); 
   }
 };
 
@@ -103,6 +134,7 @@ public:
     LHS->collectUsedNames(use);
     RHS->collectUsedNames(use); 
   }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// UnaryExprAST - Expression class for a binary operator.
@@ -123,6 +155,7 @@ public:
   void collectUsedNames(std::unordered_set<std::string> &use) override {
     RHS->collectUsedNames(use); 
   }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// IfExprAST - Expression class for a if statement.
@@ -148,6 +181,44 @@ public:
     Then->collectUsedNames(use);
     Else->collectUsedNames(use); 
   }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+};
+
+class CondExprAST: public ExprAST {
+  std::vector<std::unique_ptr<ExprAST>> Preds;
+  std::vector<std::unique_ptr<ExprAST>> Exprs;
+
+public:
+  CondExprAST(std::vector<std::unique_ptr<ExprAST>> preds,
+              std::vector<std::unique_ptr<ExprAST>> exprs)
+      : Preds(std::move(preds)), Exprs(std::move(exprs)) {}
+
+  void print() override { 
+    std::cout << "(cond "; 
+    // Callee->print(); std::cout << ": ";
+
+    for (size_t i = 0; i < Preds.size(); i++) {
+      std::cout << "( ";
+
+      Preds[i]->print();
+      std::cout << " ";
+      Exprs[i]->print();
+
+      std::cout << " ) ";
+    }
+
+    std::cout << " )";
+  }
+
+  void collectUsedNames(std::unordered_set<std::string> &use) override {
+    for (auto &e : Preds) {
+      e->collectUsedNames(use);
+    } 
+    for (auto &e : Exprs) {
+      e->collectUsedNames(use);
+    } 
+  }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 class BeginExprAST: public ExprAST {
@@ -171,11 +242,12 @@ public:
       e->collectUsedNames(use);
     } 
   }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// CallExprAST - Expression class for function calls.
 class CallExprAST : public ExprAST {
-  std::string Callee; // std::unique_ptr<ExprAST> Callee;
+  std::unique_ptr<ExprAST> Callee; // std::unique_ptr<ExprAST> Callee;
   std::vector<std::unique_ptr<ExprAST>> Args;
 
 public:
@@ -184,12 +256,14 @@ public:
               std::vector<std::unique_ptr<ExprAST>> Args)
     : Callee(std::move(Callee)), Args(std::move(Args)) {}
 */
-  CallExprAST(const std::string &Callee,
+  CallExprAST(std::unique_ptr<ExprAST> Callee,
               std::vector<std::unique_ptr<ExprAST>> Args)
-      : Callee(Callee), Args(std::move(Args)) {}
+      : Callee(std::move(Callee)), Args(std::move(Args)) {}
 
   void print() override { 
-    std::cout << "( " << Callee << " "; 
+    std::cout << "(";
+    Callee->print();  
+    std::cout << " ";
     // Callee->print(); std::cout << ": ";
     for (auto &Arg : Args) {
       Arg->print(); std::cout << " "; 
@@ -198,37 +272,35 @@ public:
   }
 
   void collectUsedNames(std::unordered_set<std::string> &use) override {
-    use.insert(Callee);
+    Callee->collectUsedNames(use);
     for (auto &e : Args) {
       e->collectUsedNames(use);
     } 
   }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// ClosureExprAST - Expression class for function calls.
 class ClosureExprAST : public ExprAST {
 public:
-  std::string Name;                                          // original name of inner function 
+  // std::string Name;                                          // original name of inner function 
   std::string FPtr;                                          // name of flattened global function, should be Name#[0-9]*
-  std::vector<std::string> FieldNames; 
+  // std::vector<std::string> FieldNames; 
   std::vector<std::unique_ptr<ExprAST>> Fields;              // fields of closure, initialized to 0
 
 public:
-  ClosureExprAST(const std::string &Name, 
-                 const std::string &FPtr)
-      : Name(Name), FPtr(std::move(FPtr)) {}
+  ClosureExprAST(const std::string &FPtr)
+      : FPtr(std::move(FPtr)) {}
 
   void print() override { 
-    std::cout << "(new-closure " << Name << " " << FPtr; 
+    std::cout << "(new-closure " << FPtr; 
     // Callee->print(); std::cout << ": ";
     for (auto &Field : Fields) {
       std::cout << " "; Field->print();
     }
     std::cout << ")";
   }
-
-  int defType() override { return 0; }
-  std::string defName() override { return Name; }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function,
@@ -252,8 +324,6 @@ public:
   const std::string &getName() const { return Name; }
   int nargs() { return Args.size(); }
 };
-
-class FunctionAST;
 
 class FunctionScope {
 public:
@@ -301,43 +371,9 @@ public:
     } 
   }
 
-  void declosurePass(void);
-};
+  void closurePass(void);
 
-class CondExprAST: public ExprAST {
-  std::vector<std::unique_ptr<ExprAST>> Preds;
-  std::vector<std::unique_ptr<ExprAST>> Exprs;
-
-public:
-  CondExprAST(std::vector<std::unique_ptr<ExprAST>> preds,
-              std::vector<std::unique_ptr<ExprAST>> exprs)
-      : Preds(std::move(preds)), Exprs(std::move(exprs)) {}
-
-  void print() override { 
-    std::cout << "(cond "; 
-    // Callee->print(); std::cout << ": ";
-
-    for (size_t i = 0; i < Preds.size(); i++) {
-      std::cout << "( ";
-
-      Preds[i]->print();
-      std::cout << " ";
-      Exprs[i]->print();
-
-      std::cout << " ) ";
-    }
-
-    std::cout << " )";
-  }
-
-  void collectUsedNames(std::unordered_set<std::string> &use) override {
-    for (auto &e : Preds) {
-      e->collectUsedNames(use);
-    } 
-    for (auto &e : Exprs) {
-      e->collectUsedNames(use);
-    } 
-  }
+  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 std::unique_ptr<ExprAST> LogError(const char *Str);

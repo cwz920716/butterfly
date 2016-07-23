@@ -223,8 +223,7 @@ static std::unique_ptr<ExprAST> ParseList() {
   default:
     // application expr
     // auto Callee = ParseExpression();
-    auto Callee = CUR_TOK.literal;
-    getNextToken(); // eat function identifier.
+    auto Callee = ParseExpression(); // eat function identifier.
     std::vector<std::unique_ptr<ExprAST>> Args;
     while (CUR_TOK.type != tok_close) {
       if (auto Arg = ParseExpression())
@@ -233,7 +232,7 @@ static std::unique_ptr<ExprAST> ParseList() {
         return LogError("non expr as arg at proc application");
     }
     // return helper::make_unique<CallExprAST>(std::move(Callee), std::move(Args));
-    return helper::make_unique<CallExprAST>(Callee, std::move(Args));
+    return helper::make_unique<CallExprAST>(std::move(Callee), std::move(Args));
   }
 }
 

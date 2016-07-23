@@ -45,7 +45,11 @@ enum token_type {
   tok_and,
   tok_or,
   tok_not,
-  tok_box,
+
+  // box related ops
+  tok_box,    // unary
+  tok_unbox,  // unary
+  tok_setbox, // binray
 
   tok_nil,
 

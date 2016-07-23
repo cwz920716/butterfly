@@ -30,6 +30,8 @@ std::string token_desc[] = {
                 "tok_or",
                 "tok_not",
                 "tok_box",
+                "tok_unbox",
+                "tok_setbox",
                 "tok_nil",
                 "tok_symbol",
                 "tok_integer",

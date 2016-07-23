@@ -28,14 +28,14 @@ static void MainLoop() {
 
 static void Transform() {
   for(auto const &fentry : FUNCTIONS) {
-    fentry.second->declosurePass();
+    fentry.second->closurePass();
   }
 }
 
 int main() {
 
   const char *test_scm = "(define (foo x) (define y x) (define (withdraw z) (- y z) ) withdraw )\n";
-  const char *test_scm2 = "(define (foo x) (define (bar y) (define (baz z) y) (foobar 1 2) baz ) (define (foobar a b) (+ a b)) bar )\n";
+  const char *test_scm2 = "(define (foo x) (define (bar y) (define (baz z) y) (foobar 1 2) baz ) (define (foobar a b) (+ a b)) bar (foobar 1 2) (set! foobar 2) )\n";
   
   // printf(test_scm7);
 
