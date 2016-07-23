@@ -402,7 +402,10 @@ public:
   void Initialize(void);
 
   bool isaGlobalName(std::string g) {
-    return Functions.count(g) > 0;
+    return Functions.count(g) > 0 
+             || g == std::string("abs")
+             || g == std::string("square")
+             || g == std::string("average");
   }
 
 private:

@@ -96,6 +96,7 @@ void FunctionAST::closurePass() {
     }
   }
   // collect local use&def names
+  scopes[Proto->Name]->DefinedValues.push_back(Proto->Name);
   for (auto const &Arg : Proto->Args) {
     std::cout << "def " << Arg << std::endl;
     scopes[Proto->Name]->DefinedValues.push_back(Arg);
@@ -137,6 +138,7 @@ void FunctionAST::closurePass() {
     head->print();
 
     // collect local use&def names
+    scopes[head->Proto->Name]->DefinedValues.push_back(head->Proto->Name);
     for (auto const &Arg : head->Proto->Args) {
       std::cout << "def " << Arg << std::endl;
       scopes[head->Proto->Name]->DefinedValues.push_back(Arg);
