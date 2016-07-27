@@ -22,7 +22,7 @@ public:
 
   virtual void collectUsedNames(std::unordered_set<std::string> &use) {  }
   
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) { return nullptr; }
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) { return nullptr; }
 };
 
 /// IntExprAST - Expression class for numeric literals like "1.0".
@@ -51,16 +51,16 @@ public:
 
   void collectUsedNames(std::unordered_set<std::string> &use) override { use.insert(Name); }
 
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// VarDefinitionExprAST - Expression class for referencing a variable, like "a".
 class VarDefinitionExprAST : public ExprAST {
   std::string Name;
-  std::unique_ptr<ExprAST> Init;
+  ExprAST* Init;
 
 public:
-  VarDefinitionExprAST(const std::string &Name, std::unique_ptr<ExprAST> init) : Name(Name), Init(std::move(init)) {}
+  VarDefinitionExprAST(const std::string &Name, ExprAST* init) : Name(Name), Init(init) {}
   void print() override { 
     std::cout << "(define " << Name << " ";
     Init->print();
@@ -70,16 +70,16 @@ public:
   std::string defName() override { return Name; }
 
   void collectUsedNames(std::unordered_set<std::string> &use) override { Init->collectUsedNames(use); }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// VarSetExprAST - Expression class for referencing a variable, like "a".
 class VarSetExprAST : public ExprAST {
   std::string Name;
-  std::unique_ptr<ExprAST> Expr;
+  ExprAST* Expr;
 
 public:
-  VarSetExprAST(const std::string &name, std::unique_ptr<ExprAST> expr) : Name(name), Expr(std::move(expr)) {}
+  VarSetExprAST(const std::string &name, ExprAST* expr) : Name(name), Expr(expr) {}
   void print() override { 
     std::cout << "(set! " << Name << " ";
     Expr->print();
@@ -90,17 +90,17 @@ public:
     use.insert(Name); 
     Expr->collectUsedNames(use); 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// GetFieldExprAST - Expression class for a binary operator.
 class GetFieldExprAST : public ExprAST {
   int idx;
-  std::unique_ptr<ExprAST> RHS;
+  ExprAST* RHS;
 
 public:
-  GetFieldExprAST(int idx, std::unique_ptr<ExprAST> RHS)
-    : idx(idx), RHS(std::move(RHS)) {}
+  GetFieldExprAST(int idx, ExprAST* RHS)
+    : idx(idx), RHS(RHS) {}
 
   void print() override { 
     std::cout << "(getfield " << idx << " ";
@@ -116,12 +116,12 @@ public:
 /// BinaryExprAST - Expression class for a binary operator.
 class BinaryExprAST : public ExprAST {
   token_type Op;
-  std::unique_ptr<ExprAST> LHS, RHS;
+  ExprAST* LHS, *RHS;
 
 public:
-  BinaryExprAST(token_type op, std::unique_ptr<ExprAST> LHS,
-                std::unique_ptr<ExprAST> RHS)
-    : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
+  BinaryExprAST(token_type op, ExprAST* LHS,
+                ExprAST* RHS)
+    : Op(op), LHS(LHS), RHS(RHS) {}
 
   void print() override { 
     std::cout << "(" << token_desc[Op] << " "; 
@@ -134,17 +134,17 @@ public:
     LHS->collectUsedNames(use);
     RHS->collectUsedNames(use); 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// UnaryExprAST - Expression class for a binary operator.
 class UnaryExprAST : public ExprAST {
   token_type Op;
-  std::unique_ptr<ExprAST> RHS;
+  ExprAST* RHS;
 
 public:
-  UnaryExprAST(token_type op, std::unique_ptr<ExprAST> RHS)
-    : Op(op), RHS(std::move(RHS)) {}
+  UnaryExprAST(token_type op, ExprAST* RHS)
+    : Op(op), RHS(RHS) {}
 
   void print() override { 
     std::cout << "(" << token_desc[Op] << " "; 
@@ -155,18 +155,18 @@ public:
   void collectUsedNames(std::unordered_set<std::string> &use) override {
     RHS->collectUsedNames(use); 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// IfExprAST - Expression class for a if statement.
 class IfExprAST : public ExprAST {
-  std::unique_ptr<ExprAST> Pred, Then, Else;
+  ExprAST *Pred, *Then, *Else;
 
 public:
-  IfExprAST(std::unique_ptr<ExprAST> _pred,
-            std::unique_ptr<ExprAST> _then, 
-            std::unique_ptr<ExprAST> _else)
-    : Pred(std::move(_pred)), Then(std::move(_then)), Else(std::move(_else)) {}
+  IfExprAST(ExprAST* _pred,
+            ExprAST* _then, 
+            ExprAST* _else)
+    : Pred(_pred), Then(_then), Else(_else) {}
 
   void print() override { 
     std::cout << "(if "; 
@@ -181,17 +181,17 @@ public:
     Then->collectUsedNames(use);
     Else->collectUsedNames(use); 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 class CondExprAST: public ExprAST {
-  std::vector<std::unique_ptr<ExprAST>> Preds;
-  std::vector<std::unique_ptr<ExprAST>> Exprs;
+  std::vector<ExprAST*> Preds;
+  std::vector<ExprAST*> Exprs;
 
 public:
-  CondExprAST(std::vector<std::unique_ptr<ExprAST>> preds,
-              std::vector<std::unique_ptr<ExprAST>> exprs)
-      : Preds(std::move(preds)), Exprs(std::move(exprs)) {}
+  CondExprAST(std::vector<ExprAST*> preds,
+              std::vector<ExprAST*> exprs)
+      : Preds(preds), Exprs(exprs) {}
 
   void print() override { 
     std::cout << "(cond "; 
@@ -218,15 +218,15 @@ public:
       e->collectUsedNames(use);
     } 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 class BeginExprAST: public ExprAST {
-  std::vector<std::unique_ptr<ExprAST>> Exprs;
+  std::vector<ExprAST*> Exprs;
 
 public:
-  BeginExprAST(std::vector<std::unique_ptr<ExprAST>> exprs)
-      : Exprs(std::move(exprs)) {}
+  BeginExprAST(std::vector<ExprAST*> exprs)
+      : Exprs(exprs) {}
 
   void print() override { 
     std::cout << "(begin " << " "; 
@@ -242,23 +242,18 @@ public:
       e->collectUsedNames(use);
     } 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// CallExprAST - Expression class for function calls.
 class CallExprAST : public ExprAST {
-  std::unique_ptr<ExprAST> Callee; // std::unique_ptr<ExprAST> Callee;
-  std::vector<std::unique_ptr<ExprAST>> Args;
+  ExprAST* Callee; // ExprAST* Callee;
+  std::vector<ExprAST*> Args;
 
 public:
-/*
-  CallExprAST(std::unique_ptr<ExprAST> Callee,
-              std::vector<std::unique_ptr<ExprAST>> Args)
-    : Callee(std::move(Callee)), Args(std::move(Args)) {}
-*/
-  CallExprAST(std::unique_ptr<ExprAST> Callee,
-              std::vector<std::unique_ptr<ExprAST>> Args)
-      : Callee(std::move(Callee)), Args(std::move(Args)) {}
+  CallExprAST(ExprAST* Callee,
+              std::vector<ExprAST*> Args)
+      : Callee(Callee), Args(Args) {}
 
   void print() override { 
     std::cout << "(";
@@ -277,7 +272,7 @@ public:
       e->collectUsedNames(use);
     } 
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// ClosureExprAST - Expression class for function calls.
@@ -286,11 +281,11 @@ public:
   // std::string Name;                                          // original name of inner function 
   std::string FPtr;                                          // name of flattened global function, should be Name#[0-9]*
   // std::vector<std::string> FieldNames; 
-  std::vector<std::unique_ptr<ExprAST>> Fields;              // fields of closure, initialized to 0
+  std::vector<ExprAST*> Fields;              // fields of closure, initialized to 0
 
 public:
   ClosureExprAST(const std::string &FPtr)
-      : FPtr(std::move(FPtr)) {}
+      : FPtr(FPtr) {}
 
   void print() override { 
     std::cout << "(new-closure " << FPtr; 
@@ -300,7 +295,7 @@ public:
     }
     std::cout << ")";
   }
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function,
@@ -313,7 +308,7 @@ class PrototypeAST {
 
 public:
   PrototypeAST(const std::string &name, std::vector<std::string> Args)
-    : Name(name), Args(std::move(Args)) {}
+    : Name(name), Args(Args) {}
 
   void print() { 
     std::cout << "( " << Name << " "; 
@@ -344,14 +339,14 @@ public:
 
 /// FunctionAST - This class represents a function definition itself.
 class FunctionAST : public ExprAST {
-  std::unique_ptr<PrototypeAST> Proto;
-  std::vector<std::unique_ptr<ExprAST>> Body;
+  PrototypeAST* Proto;
+  std::vector<ExprAST*> Body;
   friend void HandleCommand();
 
 public:
-  FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-              std::vector<std::unique_ptr<ExprAST>> Body)
-    : Proto(std::move(Proto)), Body(std::move(Body)) {}
+  FunctionAST(PrototypeAST* Proto,
+              std::vector<ExprAST*> Body)
+    : Proto(Proto), Body(Body) {}
 
   bool isaFunction() override { return true; }
   void print() override { 
@@ -373,18 +368,18 @@ public:
 
   void closurePass(void);
 
-  virtual std::unique_ptr<ExprAST> closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
+  virtual ExprAST* closureTransformationPass(FunctionScope *scope, ScopeMap &smap) override;
 };
 
-std::unique_ptr<ExprAST> LogError(const char *Str);
-std::unique_ptr<PrototypeAST> LogErrorP(const char *Str);
+ExprAST* LogError(const char *Str);
+PrototypeAST* LogErrorP(const char *Str);
 
 class Driver {
 public:
   Lexer lex;
   const char *source;
   Token CurTok;
-  std::map<std::string, std::unique_ptr<FunctionAST>> Functions; // global function namespace
+  std::map<std::string, FunctionAST*> Functions; // global function namespace
   FunctionScope *TheScope;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 

@@ -78,13 +78,12 @@ void FunctionAST::closurePass() {
   for (unsigned i = 0, e = Body.size(); i != e; ++i) {
     if (Body[i]->isaFunction()) {
       // let's release this function from 
-      ExprAST *ast_ptr = Body[i].release();
-      FunctionAST *fn_ast_ptr = dynamic_cast<FunctionAST *>(ast_ptr);
-      auto fn_ast = helper::make_unique<FunctionAST>(std::move(fn_ast_ptr->Proto), std::move(fn_ast_ptr->Body));
+      ExprAST *ast_ptr = Body[i];
+      FunctionAST *fn_ast = dynamic_cast<FunctionAST *>(ast_ptr);
       std::string closure_name = fn_ast->Proto->Name;
       std::string closure_fp = genClosureSym(closure_name);
-      std::unique_ptr<ExprAST> closure = helper::make_unique<ClosureExprAST>(closure_fp);
-      Body[i] = helper::make_unique<VarDefinitionExprAST>(closure_name, std::move(closure));
+      ExprAST *closure = new ClosureExprAST(closure_fp);
+      Body[i] = new VarDefinitionExprAST(closure_name, closure);
       fn_ast->Proto->Name = closure_fp;
       fn_ast->Proto->Args.insert(fn_ast->Proto->Args.begin(), std::string("_obj"));
 
@@ -92,7 +91,7 @@ void FunctionAST::closurePass() {
       std::cout << "clos " << Proto->Name << " -> " << fn_ast->Proto->Name << std::endl;
       scopes[Proto->Name]->Closures.insert(fn_ast->Proto->Name);
 
-      worklist.push(std::move(fn_ast));
+      worklist.push(fn_ast);
     }
   }
   // collect local use&def names
@@ -111,20 +110,19 @@ void FunctionAST::closurePass() {
   collectUsedNames(scopes[Proto->Name]->UsedValues);
   
   while (!worklist.empty()) {
-    std::unique_ptr<FunctionAST> head = std::move(worklist.front());
+    std::unique_ptr<FunctionAST> head = worklist.front();
     worklist.pop();
     scopes[head->Proto->Name] = new FunctionScope;
 
     for (unsigned i = 0, e = head->Body.size(); i != e; ++i) {
       if (head->Body[i]->isaFunction()) {
         // let's release this function from 
-        ExprAST *ast_ptr = head->Body[i].release();
-        FunctionAST *fn_ast_ptr = dynamic_cast<FunctionAST *>(ast_ptr);
-        auto fn_ast = helper::make_unique<FunctionAST>(std::move(fn_ast_ptr->Proto), std::move(fn_ast_ptr->Body));
+        ExprAST *ast_ptr = head->Body[i];
+        FunctionAST *fn_ast = dynamic_cast<FunctionAST *>(ast_ptr);
         std::string closure_name = fn_ast->Proto->Name;
         std::string closure_fp = genClosureSym(closure_name);
-        std::unique_ptr<ExprAST> closure = helper::make_unique<ClosureExprAST>(closure_fp);
-        head->Body[i] = helper::make_unique<VarDefinitionExprAST>(closure_name, std::move(closure));
+        ExprAST *closure = new ClosureExprAST(closure_fp);
+        head->Body[i] = new VarDefinitionExprAST(closure_name, closure);
         fn_ast->Proto->Name = closure_fp;
         fn_ast->Proto->Args.insert(fn_ast->Proto->Args.begin(), std::string("_obj"));
 
@@ -132,7 +130,7 @@ void FunctionAST::closurePass() {
         std::cout << "clos " << head->Proto->Name << " -> " << fn_ast->Proto->Name << std::endl;
         scopes[head->Proto->Name]->Closures.insert(fn_ast->Proto->Name);
 
-        worklist.push(std::move(fn_ast));
+        worklist.push(fn_ast);
       }
     }
     head->print();
@@ -152,7 +150,7 @@ void FunctionAST::closurePass() {
     }
     head->collectUsedNames(scopes[head->Proto->Name]->UsedValues);
     
-    innerFunctions[head->Proto->Name] = std::move(head);
+    innerFunctions[head->Proto->Name] = head;
   }
 
   // so now that every function is flattented
@@ -175,47 +173,45 @@ void FunctionAST::closurePass() {
   
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 VariableExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto escape = scope->EscapedValues.find(Name);
   auto enclose = find(scope->EnclosedValues.begin(), scope->EnclosedValues.end(), Name);
 
   if ( escape != scope->EscapedValues.end() ) {
-    std::unique_ptr<ExprAST> var = helper::make_unique<VariableExprAST>(Name);
-    std::unique_ptr<ExprAST> unbox = helper::make_unique<UnaryExprAST>(tok_unbox, 
-                                                   std::move(var));
+    ExprAST *var = new VariableExprAST(Name);
+    ExprAST *unbox = new UnaryExprAST(tok_unbox, var);
     return unbox;
   } else if ( enclose != scope->EnclosedValues.end() ) {
     int pos = enclose - scope->EnclosedValues.begin();
-    std::unique_ptr<ExprAST> target = helper::make_unique<VariableExprAST>(std::string("_obj"));
-    std::unique_ptr<ExprAST> var = helper::make_unique<GetFieldExprAST>(pos + 1, std::move(target));
-    std::unique_ptr<ExprAST> unbox = helper::make_unique<UnaryExprAST>(tok_unbox, 
-                                                   std::move(var));
+    ExprAST *target = new VariableExprAST(std::string("_obj"));
+    ExprAST *var = new GetFieldExprAST(pos + 1, target);
+    ExprAST *unbox = new UnaryExprAST(tok_unbox, var);
     return unbox;
   }
   
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 VarDefinitionExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_init = Init->closureTransformationPass(scope, smap);
   if (new_init) {
     Init.reset();
-    Init = std::move(new_init);
+    Init = new_init;
   }
 
   auto escape = scope->EscapedValues.find(Name);
   // a defined var can't be enclosed: auto enclose = find(scope->EnclosedValues.begin(), scope->EnclosedValues.end(), Name);
   if ( escape != scope->EscapedValues.end() ) {
-    std::unique_ptr<ExprAST> box = helper::make_unique<UnaryExprAST>(tok_box, std::move(Init));
-    Init = std::move(box);
+    ExprAST *box = new UnaryExprAST(tok_box, Init);
+    Init = box;
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 ClosureExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   FunctionScope *target = smap[FPtr];
   
@@ -224,25 +220,25 @@ ClosureExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) 
     auto enclose = find(scope->EnclosedValues.begin(), scope->EnclosedValues.end(), farg);
     if (enclose == scope->EnclosedValues.end()) {
       // this is not a enclosed var
-      std::unique_ptr<ExprAST> farg_var = helper::make_unique<VariableExprAST>(farg);
-      Fields.push_back(std::move(farg_var));
+      ExprAST *farg_var = new VariableExprAST(farg);
+      Fields.push_back(farg_var);
     } else {
       int pos = enclose - scope->EnclosedValues.begin();
-      std::unique_ptr<ExprAST> target = helper::make_unique<VariableExprAST>(std::string("_obj"));
-      std::unique_ptr<ExprAST> farg_var = helper::make_unique<GetFieldExprAST>(pos + 1, std::move(target));
-      Fields.push_back(std::move(farg_var));
+      ExprAST *target = new VariableExprAST(std::string("_obj"));
+      ExprAST *farg_var = new GetFieldExprAST(pos + 1, target);
+      Fields.push_back(farg_var);
     }
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 CallExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_callee = Callee->closureTransformationPass(scope, smap);
   if (new_callee) {
     Callee.reset();
-    Callee = std::move(new_callee);
+    Callee = new_callee;
   }
   
   // first push a few fields in
@@ -250,126 +246,124 @@ CallExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
     auto new_arg = Args[i]->closureTransformationPass(scope, smap);
     if (new_arg) {
       Args[i].reset();
-      Args[i] = std::move(new_arg);
+      Args[i] = new_arg;
     }
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 BinaryExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_lhs = LHS->closureTransformationPass(scope, smap);
   if (new_lhs) {
     LHS.reset();
-    LHS = std::move(new_lhs);
+    LHS = new_lhs;
   }
   
   auto new_rhs = RHS->closureTransformationPass(scope, smap);
   if (new_rhs) {
     RHS.reset();
-    RHS = std::move(new_rhs);
+    RHS = new_rhs;
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 IfExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_pred = Pred->closureTransformationPass(scope, smap);
   if (new_pred) {
     Pred.reset();
-    Pred = std::move(new_pred);
+    Pred = new_pred;
   }
   auto new_then = Then->closureTransformationPass(scope, smap);
   if (new_then) {
     Then.reset();
-    Then = std::move(new_then);
+    Then = new_then;
   }
   auto new_else = Else->closureTransformationPass(scope, smap);
   if (new_else) {
     Else.reset();
-    Else = std::move(new_else);
+    Else = new_else;
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 UnaryExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_rhs = RHS->closureTransformationPass(scope, smap);
   if (new_rhs) {
     RHS.reset();
-    RHS = std::move(new_rhs);
+    RHS = new_rhs;
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 BeginExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   // first push a few fields in
   for (unsigned i = 0, e = Exprs.size(); i != e; ++i) {
     auto new_expr = Exprs[i]->closureTransformationPass(scope, smap);
     if (new_expr) {
       Exprs[i].reset();
-      Exprs[i] = std::move(new_expr);
+      Exprs[i] = new_expr;
     }
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 CondExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   // first push a few fields in
   for (unsigned i = 0, e = Preds.size(); i != e; ++i) {
     auto new_pred = Preds[i]->closureTransformationPass(scope, smap);
     if (new_pred) {
       Preds[i].reset();
-      Preds[i] = std::move(new_pred);
+      Preds[i] = new_pred;
     }
   }
   for (unsigned i = 0, e = Exprs.size(); i != e; ++i) {
     auto new_expr = Exprs[i]->closureTransformationPass(scope, smap);
     if (new_expr) {
       Exprs[i].reset();
-      Exprs[i] = std::move(new_expr);
+      Exprs[i] = new_expr;
     }
   }
 
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 VarSetExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_expr = Expr->closureTransformationPass(scope, smap);
   if (new_expr) {
     Expr.reset();
-    Expr = std::move(new_expr);
+    Expr = new_expr;
   }
 
   auto escape = scope->EscapedValues.find(Name);
   auto enclose = find(scope->EnclosedValues.begin(), scope->EnclosedValues.end(), Name);
 
   if ( escape != scope->EscapedValues.end() ) {
-    std::unique_ptr<ExprAST> var = helper::make_unique<VariableExprAST>(Name);
-    std::unique_ptr<ExprAST> setbox = helper::make_unique<BinaryExprAST>(tok_setbox, 
-                                                   std::move(var), std::move(Expr));
+    ExprAST *var = new VariableExprAST(Name);
+    ExprAST *setbox = new BinaryExprAST(tok_setbox, var, Expr);
     return setbox;
   } else if ( enclose != scope->EnclosedValues.end() ) {
     int pos = enclose - scope->EnclosedValues.begin();
-    std::unique_ptr<ExprAST> target = helper::make_unique<VariableExprAST>(std::string("_obj"));
-    std::unique_ptr<ExprAST> var = helper::make_unique<GetFieldExprAST>(pos + 1, std::move(target));
-    std::unique_ptr<ExprAST> setbox = helper::make_unique<BinaryExprAST>(tok_setbox, 
-                                                   std::move(var), std::move(Expr));
+    ExprAST *target = new VariableExprAST(std::string("_obj"));
+    ExprAST *var = new GetFieldExprAST(pos + 1, target);
+    ExprAST *setbox = new BinaryExprAST(tok_setbox, var, Expr);
     return setbox;
   }
   
   return nullptr;
 }
 
-std::unique_ptr<ExprAST> 
+ExprAST *
 FunctionAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   for (unsigned i = 0, e = Body.size(); i != e; ++i) {
     // std::cout << "before: ";
@@ -379,7 +373,7 @@ FunctionAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
     if (new_body_expr) {
       // new_body_expr->print();
       Body[i].reset();
-      Body[i] = std::move(new_body_expr);
+      Body[i] = new_body_expr;
     }
     // std::cout << "after: ";
     // Body[i]->print();
