@@ -269,7 +269,7 @@ void HandleCommand() {
   // Evaluate a top-level expression into an anonymous function.
   if (auto ast = ParseExpression()) {
     if (ast->isaFunction()) {
-      ast->print();
+      // ast->print();
       FunctionAST *fn = dynamic_cast<FunctionAST *>(ast);
       FUNCTIONS[fn->defName()] = fn;
     } else {

@@ -5,6 +5,7 @@
 
 #include "common.h"
 #include "ast.h"
+#include "../lib/shared.h"
 
 Driver *Driver::_instance;
 #define FUNCTIONS (Driver::instance()->Functions)
@@ -32,26 +33,17 @@ static void Transform() {
   }
 }
 
-int main() {
+#define MAX_FLEN (1024 * 10)
+static char test_scm[MAX_FLEN];
 
-  const char *test_scm = "(define (foo x) (define y x) (define (withdraw z) (- y z) ) withdraw )\n";
-  const char *test_scm2 = "(define (foo x) (define (bar y) (define (baz z) y) (foobar 1 2) baz ) (define (foobar a b) (+ a b)) bar (foobar 1 2) (set! foobar 2) )\n";
-  const char *test_scm3 = "(define (sqrt x) \
-                                   (define (good-enough? guess) \
-                                           (< (abs (- (square guess) x)) 1)) \
-                                   (define (improve guess) \
-                                           (average guess (/ x guess))) \
-                                   (define (sqrt-iter guess) \
-                                           (if (good-enough? guess) \
-                                               guess \
-                                               (sqrt-iter (improve guess)))) \
-                                   (sqrt-iter 1))";
-  const char *test_scm4 = "(define (foo x) (define (fib x) (if (> x 0) 1 (+ (fib (+ x 1)) (fib (- x 1))))) fib )";
+int main(int argc, char **argv) {
 
+  int n = readFile(argv[1], test_scm, MAX_FLEN);
+  if (n > 0) test_scm[n] = '\0';
   // printf(test_scm7);
 
   // initialize
-  Driver *driver = Driver::instance(test_scm4);
+  Driver *driver = Driver::instance(test_scm);
   driver->Initialize();
 
   // Prime the first token.
@@ -62,6 +54,13 @@ int main() {
 
   // Start transformation
   Transform();
+
+  std::cerr << "Sugar Output:" << std::endl;
+  for(auto const &fentry : FUNCTIONS) {
+    std::string fname = fentry.first;
+    std::cerr << fname << ":" << std::endl;
+    fentry.second->print();
+  }
 
   return 0;
 } 

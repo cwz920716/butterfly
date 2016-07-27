@@ -34,7 +34,7 @@ static void scopeDFS(std::string fn, std::map<std::string, FunctionScope *> &sco
   for (auto const &esc : scopes[fn]->EscapedValues) {
     scopes[fn]->UsedValues.insert(esc);
   }
-
+/*
   std::cout << "---" << fn << "---" << std::endl;
   for (auto &n : scopes[fn]->DefinedValues) {
     std::cout << n << ",";
@@ -44,7 +44,7 @@ static void scopeDFS(std::string fn, std::map<std::string, FunctionScope *> &sco
     std::cout << n << ",";
   }
   std::cout << std::endl;
-
+*/
   // an enclosed var is a used but non-defined & non-global var
   // an enclosed var must be contained in obj
   for (auto &n : scopes[fn]->UsedValues) {
@@ -54,7 +54,7 @@ static void scopeDFS(std::string fn, std::map<std::string, FunctionScope *> &sco
       scopes[fn]->EnclosedValues.push_back(n);
     }
   }
-
+/*78j
   for (auto &n : scopes[fn]->EscapedValues) {
     std::cout << n << ",";
   }
@@ -63,14 +63,15 @@ static void scopeDFS(std::string fn, std::map<std::string, FunctionScope *> &sco
     std::cout << n << ",";
   }
   std::cout << std::endl;
+*/
 }
 
 // This pass is to replace innder function def with closure statements
 void FunctionAST::closurePass() {
   // Do a BFS search on closures, relace inner function with closure ast
 
-  std::queue<std::unique_ptr<FunctionAST>> worklist;
-  std::map<std::string, std::unique_ptr<FunctionAST>> innerFunctions;
+  std::queue<FunctionAST *> worklist;
+  std::map<std::string, FunctionAST *> innerFunctions;
   std::map<std::string, FunctionScope *> scopes;
 
   // first handle root of closure tree, i.e., the global function
@@ -88,7 +89,7 @@ void FunctionAST::closurePass() {
       fn_ast->Proto->Args.insert(fn_ast->Proto->Args.begin(), std::string("_obj"));
 
       // add closure children
-      std::cout << "clos " << Proto->Name << " -> " << fn_ast->Proto->Name << std::endl;
+      // std::cout << "clos " << Proto->Name << " -> " << fn_ast->Proto->Name << std::endl;
       scopes[Proto->Name]->Closures.insert(fn_ast->Proto->Name);
 
       worklist.push(fn_ast);
@@ -97,20 +98,20 @@ void FunctionAST::closurePass() {
   // collect local use&def names
   scopes[Proto->Name]->DefinedValues.push_back(Proto->Name);
   for (auto const &Arg : Proto->Args) {
-    std::cout << "def " << Arg << std::endl;
+    // std::cout << "def " << Arg << std::endl;
     scopes[Proto->Name]->DefinedValues.push_back(Arg);
   }
   for (unsigned i = 0, e = Body.size(); i != e; ++i) {
     if (Body[i]->defType() == 0) {
       // this is a defined var
-      std::cout << "def " << Body[i]->defName() << std::endl;
+      // std::cout << "def " << Body[i]->defName() << std::endl;
       scopes[Proto->Name]->DefinedValues.push_back(Body[i]->defName());
     }
   }
   collectUsedNames(scopes[Proto->Name]->UsedValues);
   
   while (!worklist.empty()) {
-    std::unique_ptr<FunctionAST> head = worklist.front();
+    FunctionAST *head = worklist.front();
     worklist.pop();
     scopes[head->Proto->Name] = new FunctionScope;
 
@@ -133,18 +134,18 @@ void FunctionAST::closurePass() {
         worklist.push(fn_ast);
       }
     }
-    head->print();
+    // head->print();
 
     // collect local use&def names
     scopes[head->Proto->Name]->DefinedValues.push_back(head->Proto->Name);
     for (auto const &Arg : head->Proto->Args) {
-      std::cout << "def " << Arg << std::endl;
+      // std::cout << "def " << Arg << std::endl;
       scopes[head->Proto->Name]->DefinedValues.push_back(Arg);
     }
     for (unsigned i = 0, e = head->Body.size(); i != e; ++i) {
       if (head->Body[i]->defType() == 0) {
         // this is a defined var
-        std::cout << "def " << head->Body[i]->defName() << std::endl;
+        // std::cout << "def " << head->Body[i]->defName() << std::endl;
         scopes[head->Proto->Name]->DefinedValues.push_back(head->Body[i]->defName());
       }
     }
@@ -160,7 +161,8 @@ void FunctionAST::closurePass() {
   for(auto const &fentry : innerFunctions) {
     std::string fname = fentry.first;
     innerFunctions[fname]->closureTransformationPass(scopes[fname], scopes);
-    innerFunctions[fname]->print();
+    // innerFunctions[fname]->print();
+    FUNCTIONS[fname] = fentry.second;
   }
 
   // print before closureTransformationPas
@@ -168,7 +170,7 @@ void FunctionAST::closurePass() {
 
   closureTransformationPass(scopes[Proto->Name], scopes);
   // print after closureTransformationPas 
-  print();
+  // print();
 
   
 }
@@ -197,7 +199,7 @@ ExprAST *
 VarDefinitionExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_init = Init->closureTransformationPass(scope, smap);
   if (new_init) {
-    Init.reset();
+    delete Init;
     Init = new_init;
   }
 
@@ -237,7 +239,7 @@ ExprAST *
 CallExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_callee = Callee->closureTransformationPass(scope, smap);
   if (new_callee) {
-    Callee.reset();
+    delete Callee;
     Callee = new_callee;
   }
   
@@ -245,7 +247,7 @@ CallExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   for (unsigned i = 0, e = Args.size(); i != e; ++i) {
     auto new_arg = Args[i]->closureTransformationPass(scope, smap);
     if (new_arg) {
-      Args[i].reset();
+      delete Args[i];
       Args[i] = new_arg;
     }
   }
@@ -257,13 +259,13 @@ ExprAST *
 BinaryExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_lhs = LHS->closureTransformationPass(scope, smap);
   if (new_lhs) {
-    LHS.reset();
+    delete LHS;
     LHS = new_lhs;
   }
   
   auto new_rhs = RHS->closureTransformationPass(scope, smap);
   if (new_rhs) {
-    RHS.reset();
+    delete RHS;
     RHS = new_rhs;
   }
 
@@ -274,17 +276,17 @@ ExprAST *
 IfExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_pred = Pred->closureTransformationPass(scope, smap);
   if (new_pred) {
-    Pred.reset();
+    delete Pred;
     Pred = new_pred;
   }
   auto new_then = Then->closureTransformationPass(scope, smap);
   if (new_then) {
-    Then.reset();
+    delete Then;
     Then = new_then;
   }
   auto new_else = Else->closureTransformationPass(scope, smap);
   if (new_else) {
-    Else.reset();
+    delete Else;
     Else = new_else;
   }
 
@@ -295,7 +297,7 @@ ExprAST *
 UnaryExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_rhs = RHS->closureTransformationPass(scope, smap);
   if (new_rhs) {
-    RHS.reset();
+    delete RHS;
     RHS = new_rhs;
   }
 
@@ -308,7 +310,7 @@ BeginExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   for (unsigned i = 0, e = Exprs.size(); i != e; ++i) {
     auto new_expr = Exprs[i]->closureTransformationPass(scope, smap);
     if (new_expr) {
-      Exprs[i].reset();
+      delete Exprs[i];
       Exprs[i] = new_expr;
     }
   }
@@ -322,14 +324,14 @@ CondExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   for (unsigned i = 0, e = Preds.size(); i != e; ++i) {
     auto new_pred = Preds[i]->closureTransformationPass(scope, smap);
     if (new_pred) {
-      Preds[i].reset();
+      delete Preds[i];
       Preds[i] = new_pred;
     }
   }
   for (unsigned i = 0, e = Exprs.size(); i != e; ++i) {
     auto new_expr = Exprs[i]->closureTransformationPass(scope, smap);
     if (new_expr) {
-      Exprs[i].reset();
+      delete Exprs[i];
       Exprs[i] = new_expr;
     }
   }
@@ -341,7 +343,7 @@ ExprAST *
 VarSetExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   auto new_expr = Expr->closureTransformationPass(scope, smap);
   if (new_expr) {
-    Expr.reset();
+    delete Expr;
     Expr = new_expr;
   }
 
@@ -372,7 +374,7 @@ FunctionAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
     auto new_body_expr = Body[i]->closureTransformationPass(scope, smap);
     if (new_body_expr) {
       // new_body_expr->print();
-      Body[i].reset();
+      delete Body[i];
       Body[i] = new_body_expr;
     }
     // std::cout << "after: ";

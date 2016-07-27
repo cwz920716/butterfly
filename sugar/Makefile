@@ -2,7 +2,7 @@ CXX=g++
 CXXFLAGS=--std=c++11 -c -Wall
 LFLAGS=-g
 
-INCLUDES=common.h ast.h
+INCLUDES=common.h ast.h ../lib
 SRCS=lexer.cpp ast.cpp main.cpp transform.cpp
 OBJS=lexer.o ast.o main.o transform.o
 
