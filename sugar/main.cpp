@@ -46,11 +46,12 @@ int main() {
                                                guess \
                                                (sqrt-iter (improve guess)))) \
                                    (sqrt-iter 1))";
-  
+  const char *test_scm4 = "(define (foo x) (define (fib x) (if (> x 0) 1 (+ (fib (+ x 1)) (fib (- x 1))))) fib )";
+
   // printf(test_scm7);
 
   // initialize
-  Driver *driver = Driver::instance(test_scm3);
+  Driver *driver = Driver::instance(test_scm4);
   driver->Initialize();
 
   // Prime the first token.

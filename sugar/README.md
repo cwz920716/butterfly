@@ -15,6 +15,12 @@ Enclosed: a -> (unbox (getfield ? _obj))
 
 2. compile lambda expr to function def
 
+(lambda (formal_args) expr) -> (define (gensymbol1 formal_args) expr) replace its appearance with gensym1
+
+3. handle let keyword:
+
+(let ((a 1) (b 2) ...) expr...) -> (begin (define a##0 1) (define b##1 2) ... )
+
 3. handle recursion
 
 4. etc.

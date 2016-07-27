@@ -188,7 +188,7 @@ VariableExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap)
   } else if ( enclose != scope->EnclosedValues.end() ) {
     int pos = enclose - scope->EnclosedValues.begin();
     std::unique_ptr<ExprAST> target = helper::make_unique<VariableExprAST>(std::string("_obj"));
-    std::unique_ptr<ExprAST> var = helper::make_unique<GetFieldExprAST>(pos, std::move(target));
+    std::unique_ptr<ExprAST> var = helper::make_unique<GetFieldExprAST>(pos + 1, std::move(target));
     std::unique_ptr<ExprAST> unbox = helper::make_unique<UnaryExprAST>(tok_unbox, 
                                                    std::move(var));
     return unbox;
@@ -229,7 +229,7 @@ ClosureExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) 
     } else {
       int pos = enclose - scope->EnclosedValues.begin();
       std::unique_ptr<ExprAST> target = helper::make_unique<VariableExprAST>(std::string("_obj"));
-      std::unique_ptr<ExprAST> farg_var = helper::make_unique<GetFieldExprAST>(pos, std::move(target));
+      std::unique_ptr<ExprAST> farg_var = helper::make_unique<GetFieldExprAST>(pos + 1, std::move(target));
       Fields.push_back(std::move(farg_var));
     }
   }
@@ -360,7 +360,7 @@ VarSetExprAST::closureTransformationPass(FunctionScope *scope, ScopeMap &smap) {
   } else if ( enclose != scope->EnclosedValues.end() ) {
     int pos = enclose - scope->EnclosedValues.begin();
     std::unique_ptr<ExprAST> target = helper::make_unique<VariableExprAST>(std::string("_obj"));
-    std::unique_ptr<ExprAST> var = helper::make_unique<GetFieldExprAST>(pos, std::move(target));
+    std::unique_ptr<ExprAST> var = helper::make_unique<GetFieldExprAST>(pos + 1, std::move(target));
     std::unique_ptr<ExprAST> setbox = helper::make_unique<BinaryExprAST>(tok_setbox, 
                                                    std::move(var), std::move(Expr));
     return setbox;
