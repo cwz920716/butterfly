@@ -9,6 +9,7 @@
 #define CUR_TOK (Driver::instance()->CurTok)
 #define JIT (Driver::instance()->TheJIT)
 #define MODULE (Driver::instance()->TheModule)
+#define BFUNCTIONS (Driver::instance()->BufferedFunctions)
 #define INIT Driver::instance()->Initialize()
 
 static Token getNextToken() { return Driver::instance()->getNextToken(); }
@@ -284,6 +285,13 @@ void HandleCommand() {
   // Evaluate a top-level expression into an anonymous function.
   if (auto ast = ParseExpression()) {
     if (ast->isaFunction()) {
+       ExprAST *ast_ptr = ast.release();
+       FunctionAST *fn_ptr = (FunctionAST*) (ast_ptr);
+       std::unique_ptr<FunctionAST> fn(fn_ptr);
+       fn->print();
+       fn->registerMe();
+       BFUNCTIONS.push_back(std::move(fn));
+/*
        if(auto *FnIR = ast->codegen()) {
          std::cout << "Read function definition:" << std::endl;
          FnIR->dump();
@@ -292,13 +300,28 @@ void HandleCommand() {
        } else {
          std::cout << "Read function definition: (nil)" << std::endl;
        }
+*/
     } else {
+      std::cout << "prepare to clear buffered functions " << BFUNCTIONS.size() << std::endl;
+      // clear buffered definition
+      for(unsigned i = 0, e = BFUNCTIONS.size(); i != e; ++i) {
+        if (auto FnIR = BFUNCTIONS[i]->codegen()) {
+          FnIR->dump();
+          JIT->addModule(std::move(MODULE));
+          INIT;
+        } else
+          LogError("Buffered Functions not working.");
+        BFUNCTIONS[i].reset();
+      }
+      BFUNCTIONS.clear();
+
       // Make an anonymous proto.
       auto proto = llvm::make_unique<PrototypeAST>("__anon_expr",
                                                    std::vector<std::string>());
       std::vector<std::unique_ptr<ExprAST>> body;
       body.push_back(std::move(ast));
       auto fn = llvm::make_unique<FunctionAST>(std::move(proto), std::move(body));
+      fn->registerMe();
       fn->codegen()->dump();
 
       // JIT the module containing the anonymous expression, keeping a handle so

@@ -10,8 +10,6 @@ public:
   virtual ~ExprAST() {}
   virtual void print() {}
   virtual bool isaFunction() { return false; }
-  virtual int defType() { return -1; }
-  virtual std::string defName() { return std::string(""); }
   virtual llvm::Value *codegen() { return nullptr; }
 };
 
@@ -56,8 +54,6 @@ public:
     std::cout << ")";
   }
   llvm::Value *codegen() override;
-  int defType() override { return 0; }
-  std::string defName() override { return Name; }
 };
 
 /// VarSetExprAST - Expression class for referencing a variable, like "a".
@@ -202,11 +198,6 @@ class FunctionScope {
 public:
   // scope of function local
   std::map<std::string, llvm::AllocaInst *> NamedValues;
-  std::unordered_set<std::string> EscapedValues;
-  std::vector<std::string> DefinedValues;
-  std::vector<std::string> UsedValues;
-  // closure layout, for global functions, this is a useless member
-  std::vector<std::string> EnclosedValues;
   llvm::Function *TheFunction;
   FunctionScope() {}
 };
@@ -216,6 +207,7 @@ class FunctionAST : public ExprAST {
   std::unique_ptr<PrototypeAST> Proto;
   std::vector<std::unique_ptr<ExprAST>> Body;
   FunctionScope Scope;
+  std::string name;
 
 public:
   FunctionAST(std::unique_ptr<PrototypeAST> Proto,
@@ -232,8 +224,8 @@ public:
     std::cout << ")" << std::endl;
   }
   llvm::Value *codegen() override;
-  int defType() override { return 1; }
-  std::string defName() override { return Proto->Name; }
+
+  void registerMe();
 
   // before generating function def, a few codegen pass have to be invoked
   // including but not limited to:
@@ -243,7 +235,6 @@ public:
   //   gc frame setup
 
   void allocaArgPass(void);
-  void scopePass(void);
 };
 
 /**************************************************************************************************
@@ -304,6 +295,7 @@ public:
   std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
   std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
   std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos; // global function namespace
+  std::vector<std::unique_ptr<FunctionAST>> BufferedFunctions;
   FunctionScope *TheScope;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 

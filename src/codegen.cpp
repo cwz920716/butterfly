@@ -78,34 +78,17 @@ llvm::Value *VariableExprAST::codegen() {
   // Load the value.
   llvm::Value *LoadV = BUILDER.CreateLoad(V, Name.c_str());
 
-  // if this is a excaped value, e.g., it is escaped by our compiler pass
-  std::string bt_unbox_sym("bt_unbox");
-  if (SCOPE->EscapedValues.find(Name) == SCOPE->EscapedValues.end()) {
-      llvm::Function *unbox = getFunction(bt_unbox_sym);
-      std::vector<llvm::Value *> ArgsV;
-      ArgsV.push_back(LoadV);
-      LoadV = BUILDER.CreateCall(unbox, ArgsV, "boxtmp");
-  }
-
   return LoadV;
 }
 
 llvm::Value *VarDefinitionExprAST::codegen() {
   // VarDef is a alloca inst which will be allocated at entry block, hence here we only return nil
   // normal scheme code will not rely on the return value of defineVar
-  std::string bt_box_sym("bt_box");
   llvm::Value *InitVal = Init->codegen();
   if (!InitVal)
     return LogErrorV("Unknown variable initialization");
 
   llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(SCOPE->TheFunction, Name);
-
-  if (SCOPE->EscapedValues.find(Name) == SCOPE->EscapedValues.end()) {
-      llvm::Function *box = getFunction(bt_box_sym);
-      std::vector<llvm::Value *> ArgsV;
-      ArgsV.push_back(InitVal);
-      InitVal = BUILDER.CreateCall(box, ArgsV, "boxtmp");
-  }
 
   BUILDER.CreateStore(InitVal, Alloca);
   SCOPE->NamedValues[Name] = Alloca;
@@ -115,24 +98,12 @@ llvm::Value *VarDefinitionExprAST::codegen() {
 llvm::Value *VarSetExprAST::codegen() {
   // VarDef is a alloca inst which will be allocated at entry block, hence here we only return nil
   // normal scheme code will not rely on the return value of defineVar
-  std::string bt_set_box_sym("bt_set_box");
   llvm::Value *Val = Expr->codegen();
   if (!Val)
     return LogErrorV("Unknown variable assignment");
 
-  if (SCOPE->EscapedValues.find(Name) == SCOPE->EscapedValues.end()) {
-    // if this is a escaped var, then no need to update the stack, just call bt_set_box
-    llvm::Value *Variable = SCOPE->NamedValues[Name];
-    llvm::Value *BoxedVar = BUILDER.CreateLoad(Variable, Name.c_str());
-    llvm::Function *setBox = getFunction(bt_set_box_sym);
-    std::vector<llvm::Value *> ArgsV;
-    ArgsV.push_back(BoxedVar);
-    ArgsV.push_back(Val);
-    BUILDER.CreateCall(setBox, ArgsV, "boxtmp");
-  } else {
-    llvm::Value *Variable = SCOPE->NamedValues[Name];
-    BUILDER.CreateStore(Val, Variable);
-  }
+  llvm::Value *Variable = SCOPE->NamedValues[Name];
+  BUILDER.CreateStore(Val, Variable);
   return Val;
 }
 
@@ -336,19 +307,9 @@ llvm::Function *PrototypeAST::codegen() {
 
 void FunctionAST::allocaArgPass() {
   llvm::Function *TheFunction = Scope.TheFunction;
-  std::string bt_box_sym("bt_box");
 
   for (auto &Arg : TheFunction->args()) {
     llvm::Value *arg = &Arg;
-
-    if (Scope.EscapedValues.find(Arg.getName()) == Scope.EscapedValues.end()) {
-      // This is a Escaped value, i.e., it will be used by some closure
-      // it must be put in a box before store 
-      llvm::Function *box = getFunction(bt_box_sym);
-      std::vector<llvm::Value *> ArgsV;
-      ArgsV.push_back(arg);
-      arg = BUILDER.CreateCall(box, ArgsV, "boxtmp");
-    }
 
     // Create an alloca for this variable.
     llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
@@ -359,25 +320,18 @@ void FunctionAST::allocaArgPass() {
   }
 }
 
-// This pass is to 
-void FunctionAST::scopePass() {
-  for (auto const& Arg : Proto->Args) {
-    std::cout << "def" << Arg << std::endl;
-   //  Scope.DefinedValues.push_back(Arg);
-  }
-  
+void FunctionAST::registerMe() {
+  name = Proto->getName();
+  FUNCTIONPROTOS[Proto->getName()] = std::move(Proto);
 }
 
 llvm::Value *FunctionAST::codegen() {
-  // scope pass must be first to execute!
-  scopePass();
-
   // Transfer ownership of the prototype to the FunctionProtos map, but keep a
   // reference to it for use below.
-  auto &P = *Proto;
-  FUNCTIONPROTOS[Proto->getName()] = std::move(Proto);
+  // auto &P = *Proto;
+  // FUNCTIONPROTOS[Proto->getName()] = std::move(Proto);
   // First, check for an existing function from a previous 'extern' declaration.
-  llvm::Function *TheFunction = getFunction(P.getName());
+  llvm::Function *TheFunction = getFunction(name);
   if (!TheFunction)
     return nullptr;
 

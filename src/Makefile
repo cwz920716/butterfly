@@ -1,5 +1,5 @@
 CXX=clang++
-CXXFLAGS=-c -O3 `llvm-config --cxxflags`
+CXXFLAGS=-c `llvm-config --cxxflags`
 LFLAGS=-g -Wl,--export-dynamic
 LLVMFLAGS=`llvm-config --cxxflags --ldflags --system-libs --libs core mcjit native`
 

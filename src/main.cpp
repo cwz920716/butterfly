@@ -5,6 +5,7 @@
 
 #include "common.h"
 #include "ast.h"
+#include "../lib/shared.h"
 
 Driver *Driver::_instance;
 
@@ -48,14 +49,18 @@ static void MainLoop() {
   }
 }
 
-int main() {
+#define MAX_FLEN (1024 * 10)
+static char test_scm[MAX_FLEN];
+
+int main(int argc, char **argv) {
   init_butterfly();
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
   llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
 
-  const char *test_scm = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)";
+/*
+  const char *test_scm1 = "(define (square x) (* x x))\n(define (sum-of-squares x y) (+ (square x) (square y)))\n(square 4)\n(sum-of-squares 2 4)";
   const char *test_scm2 = "(begin nil 1 (/ 3 2) (and (> 1 0) (< 1 0)) nil)\n";
   const char *test_scm3 = "(define (pos-neg x) ( cond ((= x 0) 1) ((> x 0) (- x)) ))\n(pos-neg -12)\n(pos-neg 102)\n(pos-neg 0)";
   const char *test_scm4 = "(define x 0)\n(define (quad-square x) (define y (* x x)) (* y y))\n(quad-square 3)\n(quad-square -3)";
@@ -69,11 +74,13 @@ int main() {
                                       balance)                               \
                               -1))\n(withdraw 100 90)\n(withdraw 90 100)"
                           ;
+*/
 
-  // printf(test_scm7);
+  int n = readFile(argv[1], test_scm, MAX_FLEN);
+  if (n > 0) test_scm[n] = '\0';
 
   // initialize
-  Driver *driver = Driver::instance(test_scm7);
+  Driver *driver = Driver::instance(test_scm);
   driver->Initialize();
 
   // Prime the first token.
