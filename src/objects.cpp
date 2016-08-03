@@ -136,6 +136,47 @@ char *bt_box(char *val) {
   return (char *) ptr;
 }
 
+extern "C"
+char *bt_closure(char *fp, int n, char **members) {
+  bt_value_t *ptr = (bt_value_t *)aligned_alloc(8, sizeof(bt_value_t) + sizeof(bt_value_t *) * (n + 1));
+  if (!ptr) {
+    // allocation failed. should perform gc
+    // for now, return Null
+    return LogErrorN("alloc failed.");
+  }
+
+  ptr->type = ClosureTy;
+  ptr->size = n;
+  bt_value_t **data = bt_value_data(ptr);
+  data[0] = (bt_value_t *) fp;
+
+  for (int i = 0; i < n; i++) {
+    bt_value_t *box = (bt_value_t *) members[i];
+    if (bt_is_box(box)) {
+      data[i+1] = box;
+    } else
+      return LogErrorN("closure cannot take non-box member.");
+  }
+
+  return (char *) ptr;
+}
+
+extern "C"
+char *bt_getfield(char *object, int n) {
+  bt_value_t *bt_val = (bt_value_t *) object;
+  bt_value_t **data;
+
+  if (bt_is_closure(bt_val)) {
+    data = bt_value_data(bt_val);
+    if (n < bt_val->size) {
+      return (char *) data[n];
+    } else
+      return LogErrorN("getfield out-of-bound.");
+  }
+
+  return LogErrorN("not a closure.");
+}
+
 extern "C" 
 char *bt_unbox(char *box) {
   bt_value_t *bt_val = (bt_value_t *) box;
@@ -181,6 +222,11 @@ bool bt_is_fptr(bt_value_t *val) {
 bool bt_is_box(bt_value_t *val) {
   if (!val) return false;
   return val->type == BoxTy && val->size == 1;
+}
+
+bool bt_is_closure(bt_value_t *val) {
+  if (!val) return false;
+  return val->type == ClosureTy;
 }
 
 int64_t bt_to_int64(bt_value_t *val) {

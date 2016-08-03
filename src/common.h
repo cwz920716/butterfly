@@ -51,7 +51,12 @@ enum token_type {
   tok_and,
   tok_or,
   tok_not,
+
   tok_box,
+  tok_unbox,
+  tok_setbox,
+  tok_closure,
+  tok_getfield,
 
   tok_nil,
 

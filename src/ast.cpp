@@ -62,7 +62,7 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
     getNextToken(); // eat nil
     return llvm::make_unique<NilExprAST>();
   default:
-    std::cout << "when parsing " << CUR_TOK.literal;
+    std::cout << "when parsing " << CUR_TOK.literal << std::endl;
     return LogError("unknown token when expecting a primary");
   }
 }
@@ -206,6 +206,33 @@ static std::unique_ptr<ExprAST> ParseSetExpr() {
   return llvm::make_unique<VarSetExprAST>(IdName, std::move(Result));
 }
 
+static std::unique_ptr<ExprAST> ParseClosure() {
+  getNextToken(); // eat closure
+  // closure expr
+  auto Callback = CUR_TOK.literal;
+  std::cout << Callback << std::endl;
+  getNextToken(); // eat function identifier.
+  std::vector<std::unique_ptr<ExprAST>> Members;
+  while (CUR_TOK.type != tok_close) {
+    if (auto Arg = ParseExpression())
+      Members.push_back(std::move(Arg));
+    else
+      return LogError("non expr as arg at proc application.");
+  }
+  return llvm::make_unique<ClosureExprAST>(Callback, std::move(Members));
+}
+
+static std::unique_ptr<ExprAST> ParseGetField() {
+  getNextToken(); // eat getfield
+  if (!expectToken(tok_integer)) return LogError("expect int after tok_getfield.");
+  int idx = stoi(CUR_TOK.literal);
+  getNextToken(); // eat idx
+  if (auto object = ParseExpression()) 
+    return llvm::make_unique<GetFieldExprAST>(idx, std::move(object));
+  else
+    return LogError("non expr at getfield object.");
+}
+
 /// list
 ///   ::= BinOp expr1 expr2
 ///   ::= if expr0 expr1 expr2
@@ -214,6 +241,8 @@ static std::unique_ptr<ExprAST> ParseSetExpr() {
 ///   ::= symbol expr*  (* function call: could be direct function call or fptr/closure application *)
 ///   ::= (list) expr*  (* function apply: closure or function ptr *)
 ///   ::= cond ((pred1) (expr1))+
+///   ::= closure id expr+
+///   ::= getfield int expr
 ///   ::= begin expr*
 static std::unique_ptr<ExprAST> ParseList() {
   switch (CUR_TOK.type) {
@@ -226,9 +255,11 @@ static std::unique_ptr<ExprAST> ParseList() {
   case tok_eq:
   case tok_and:
   case tok_or:
+  case tok_setbox:
     return ParseBinOpExpr();
   case tok_not:
   case tok_box:
+  case tok_unbox:
     return ParseUnaryOpExpr();
   case tok_if:
     return ParseIfExpr();
@@ -242,6 +273,10 @@ static std::unique_ptr<ExprAST> ParseList() {
     return ParseCondExpr();
   case tok_begin:
     return ParseBeginExpr();
+  case tok_closure:
+    return ParseClosure();
+  case tok_getfield:
+    return ParseGetField();
   default:
     // application expr
     // auto Callee = ParseExpression();

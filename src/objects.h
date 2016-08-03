@@ -44,13 +44,16 @@ extern "C" int32_t bt_as_bool(char *cond);
 extern "C" char *bt_new_fptr(char *fp, int nargs);
 extern "C" char *bt_get_callable(char *val);
 extern "C" char *bt_box(char *val);
+extern "C" char *bt_getfield(char *object, int n);
 extern "C" char *bt_unbox(char *box);
 extern "C" char *bt_set_box(char *box, char *new_val);
+extern "C" char *bt_closure(char *fp, int n, char **members);
 extern "C" char *bt_error(void);
 
 bool bt_is_int64(bt_value_t *val);
 bool bt_is_fptr(bt_value_t *val);
 bool bt_is_box(bt_value_t *val);
+bool bt_is_closure(bt_value_t *val);
 
 int64_t bt_to_int64(bt_value_t *val);
 

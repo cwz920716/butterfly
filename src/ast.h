@@ -171,6 +171,45 @@ public:
   llvm::Value *codegen() override;
 };
 
+/// ClosureExprAST - Expression class for new closure.
+class ClosureExprAST : public ExprAST {
+  std::string Callback; // std::unique_ptr<ExprAST> Callee;
+  std::vector<std::unique_ptr<ExprAST>> Members;
+
+public:
+  ClosureExprAST(const std::string &Callback,
+                 std::vector<std::unique_ptr<ExprAST>> Members)
+      : Callback(Callback), Members(std::move(Members)) {}
+
+  void print() override { 
+    std::cout << "(clos " << Callback << ": "; 
+    // Callee->print(); std::cout << ": ";
+    for (auto &m : Members) {
+      m->print(); std::cout << ", ";  
+    }
+    std::cout << ")";
+  }
+  llvm::Value *codegen() override;
+};
+
+/// GetFieldExprAST - Expression class for get field.
+class GetFieldExprAST : public ExprAST {
+  int Index; // std::unique_ptr<ExprAST> Callee;
+  std::unique_ptr<ExprAST> Object;
+
+public:
+  GetFieldExprAST(const int index,
+                  std::unique_ptr<ExprAST> object)
+      : Index(index), Object(std::move(object)) {}
+
+  void print() override { 
+    std::cout << "(getfield " << Index << " "; 
+    Object->print();
+    std::cout << ")";
+  }
+  llvm::Value *codegen() override;
+};
+
 /// PrototypeAST - This class represents the "prototype" for a function,
 /// which captures its name, and its argument names (thus implicitly the number
 /// of arguments the function takes).

@@ -113,8 +113,10 @@ llvm::Value *UnaryExprAST::codegen() {
     return LogErrorV("Unknown RHS.");
   std::string bt_binary_int64_sym("bt_binary_int64");
   std::string bt_box_sym("bt_box");
+  std::string bt_unbox_sym("bt_unbox");
   llvm::Function *binOpInt64 = getFunction(bt_binary_int64_sym);
   llvm::Function *box = getFunction(bt_box_sym);
+  llvm::Function *unbox = getFunction(bt_unbox_sym);
   std::vector<llvm::Value *> ArgsV;
 
   switch (Op) {
@@ -126,6 +128,9 @@ llvm::Value *UnaryExprAST::codegen() {
   case tok_box:
     ArgsV.push_back( R );
     return BUILDER.CreateCall(box, ArgsV, "boxtmp");
+  case tok_unbox:
+    ArgsV.push_back( R );
+    return BUILDER.CreateCall(unbox, ArgsV, "unboxtmp");
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");
   }
@@ -137,7 +142,9 @@ llvm::Value *BinaryExprAST::codegen() {
   if (!L || !R)
     return LogErrorV("Unknown LHS or RHS.");
   std::string bt_binary_int64_sym("bt_binary_int64");
+  std::string bt_set_box_sym("bt_set_box");
   llvm::Function *binOpInt64 = getFunction(bt_binary_int64_sym);
+  llvm::Function *setbox = getFunction(bt_set_box_sym);
   std::vector<llvm::Value *> ArgsV;
 
   switch (Op) {
@@ -154,6 +161,10 @@ llvm::Value *BinaryExprAST::codegen() {
     ArgsV.push_back( L );
     ArgsV.push_back( R );
     return BUILDER.CreateCall(binOpInt64, ArgsV, "boptmp");
+  case tok_setbox:
+    ArgsV.push_back( L );
+    ArgsV.push_back( R );
+    return BUILDER.CreateCall(setbox, ArgsV, "setboxtmp");
   default:
     return LogErrorV("invalid binary operator or not implemented yet.");
   }
@@ -223,6 +234,52 @@ llvm::Value *BeginExprAST::codegen() {
 
   if (!ret) return LogErrorV("empty begin-clause.");
   return ret;
+}
+
+llvm::Value *ClosureExprAST::codegen() {
+  llvm::Function *CallbackF = getFunction(Callback);
+  std::string bt_closure_sym("bt_closure");
+  std::vector<llvm::Value *> ArgsV;
+
+  llvm::Value *FP = BUILDER.CreateBitCast(CallbackF, llvm::Type::getInt8PtrTy(LLVM_CONTEXT), "fptr");
+  int n = Members.size();
+
+  llvm::ArrayType *AT = llvm::ArrayType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), n);
+  llvm::Value *Mems = BUILDER.CreateAlloca(AT);
+  // Mems->dump();
+  for (int i = 0; i < n; i++) {
+    llvm::Value *Ms[] = { llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), 
+                          llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, i, true)) };
+    llvm::ArrayRef<llvm::Value *> Ma(Ms);
+    auto VI = BUILDER.CreateGEP(Mems, Ma);
+    llvm::Value *V = Members[i]->codegen();
+    if (!V)
+      return LogErrorV("Unknown closure member referenced");
+    BUILDER.CreateStore(V, VI);
+  }
+
+  // call bt_closure
+  llvm::Function *Closure = getFunction(bt_closure_sym);
+  ArgsV.push_back(FP);
+  ArgsV.push_back(llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, n, true)));
+  llvm::Value *BI[] = { llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)), 
+                        llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, 0, true)) };
+  auto MBI = BUILDER.CreateGEP(Mems, BI);
+  MBI->dump();
+  ArgsV.push_back(MBI);
+  return BUILDER.CreateCall(Closure, ArgsV, "clos");
+}
+
+llvm::Value *GetFieldExprAST::codegen() {
+  std::string bt_getfield_sym("bt_getfield");
+  std::vector<llvm::Value *> ArgsV;
+
+  // call bt_getfield
+  llvm::Value *CG_Object = Object->codegen();
+  llvm::Function *GetField = getFunction(bt_getfield_sym);
+  ArgsV.push_back(CG_Object);
+  ArgsV.push_back(llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, Index, true)));
+  return BUILDER.CreateCall(GetField, ArgsV, "getfieldtmp");
 }
 
 llvm::Value *CallExprAST::codegen() {
@@ -377,6 +434,8 @@ void init_butterfly_per_module(void) {
   std::string bt_box_sym("bt_box");
   std::string bt_unbox_sym("bt_unbox"), box_sym("box");
   std::string bt_set_box_sym("bt_set_box"), new_val_sym("new_val");
+  std::string bt_closure_sym("bt_closure"), n_sym("n"), members_sym("members"); 
+  std::string bt_getfield_sym("bt_getfield"), object_sym("object"); 
   std::string bt_get_callable_sym("bt_get_callable"), val_sym("val");
   std::string bt_binary_int64_sym("bt_binary_int64"), op_sym("op"), lhs_sym("lhs"), rhs_sym("rhs");
   std::string bt_as_bool_sym("bt_as_bool"), cond_sym("cond");
@@ -449,6 +508,38 @@ void init_butterfly_per_module(void) {
   formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
   FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
   F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_set_box_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_closure
+  formals_name.push_back(fp_sym);
+  formals_name.push_back(n_sym);
+  formals_name.push_back(members_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::Type::getInt32Ty(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::PointerType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), 0) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_closure_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
+
+  // initialize bt_closure
+  formals_name.push_back(object_sym);
+  formals_name.push_back(n_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  formals_type.push_back( llvm::Type::getInt32Ty(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_getfield_sym, MODULE.get());
   // Set names for all arguments.
   Idx = 0;
   for (auto &Arg : F->args())

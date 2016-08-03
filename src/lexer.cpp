@@ -30,6 +30,10 @@ std::string token_desc[] = {
                 "tok_or",
                 "tok_not",
                 "tok_box",
+                "tok_unbox",
+                "tok_setbox",
+                "tok_closure",
+                "tok_getfield",
                 "tok_nil",
                 "tok_symbol",
                 "tok_integer",
@@ -83,11 +87,11 @@ token_type getIntToken(const char *text, int *len) {
 }
 
 int isIdChar0(char ch) {
-  return isalpha(ch);
+  return isalpha(ch) || ch == '_';
 }
 
 int isIdChar(char ch) {
-  return isIdChar0(ch) || isdigit(ch) || ch == '!' || ch == '-' || ch == '?';
+  return isIdChar0(ch) || isdigit(ch) || ch == '!' || ch == '-' || ch == '?' || ch == '#';
 }
 
 bool equalsKeyword(const char *a, int n, const char *b) {
@@ -128,6 +132,14 @@ token_type getIdToken(const char *text, int *len) {
     return tok_not;
   if (equalsKeyword(text, n, "box"))
     return tok_box;
+  if (equalsKeyword(text, n, "unbox"))
+    return tok_unbox;
+  if (equalsKeyword(text, n, "setbox!"))
+    return tok_setbox;
+  if (equalsKeyword(text, n, "closure"))
+    return tok_closure;
+  if (equalsKeyword(text, n, "getfield"))
+    return tok_getfield;
   if (equalsKeyword(text, n, "nil"))
     return tok_nil;
   if (equalsKeyword(text, n, "set!"))
