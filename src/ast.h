@@ -146,9 +146,11 @@ public:
 };
 
 /// CallExprAST - Expression class for function calls.
+/// TODO: add short-cut support for static dispatch
 class CallExprAST : public ExprAST {
-  std::string Callee; // std::unique_ptr<ExprAST> Callee;
+  std::unique_ptr<ExprAST> Callee;
   std::vector<std::unique_ptr<ExprAST>> Args;
+  std::string Symbol_; // candidate for static callee
 
 public:
 /*
@@ -156,13 +158,14 @@ public:
               std::vector<std::unique_ptr<ExprAST>> Args)
     : Callee(std::move(Callee)), Args(std::move(Args)) {}
 */
-  CallExprAST(const std::string &Callee,
-              std::vector<std::unique_ptr<ExprAST>> Args)
-      : Callee(Callee), Args(std::move(Args)) {}
+  CallExprAST(std::unique_ptr<ExprAST> Callee,
+              std::vector<std::unique_ptr<ExprAST>> Args,
+              std::string symbol)
+      : Callee(std::move(Callee)), Args(std::move(Args)), Symbol_(symbol) {}
 
   void print() override { 
-    std::cout << "(apply " << Callee << ": "; 
-    // Callee->print(); std::cout << ": ";
+    std::cout << "(apply "; 
+    Callee->print(); std::cout << ": ";
     for (auto &Arg : Args) {
       Arg->print(); std::cout << ", "; 
     }

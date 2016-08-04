@@ -238,7 +238,7 @@ static std::unique_ptr<ExprAST> ParseGetField() {
 ///   ::= if expr0 expr1 expr2
 ///   ::= define Definition
 ///   ::= set! id expr
-///   ::= symbol expr*  (* function call: could be direct function call or fptr/closure application *)
+///   ::= expr expr*  (* function call: could be direct function call or fptr/closure application *)
 ///   ::= (list) expr*  (* function apply: closure or function ptr *)
 ///   ::= cond ((pred1) (expr1))+
 ///   ::= closure id expr+
@@ -279,9 +279,9 @@ static std::unique_ptr<ExprAST> ParseList() {
     return ParseGetField();
   default:
     // application expr
-    // auto Callee = ParseExpression();
-    auto Callee = CUR_TOK.literal;
-    getNextToken(); // eat function identifier.
+    std::string sym = CUR_TOK.literal;
+    auto Callee = ParseExpression();
+    // auto Callee = CUR_TOK.literal;
     std::vector<std::unique_ptr<ExprAST>> Args;
     while (CUR_TOK.type != tok_close) {
       if (auto Arg = ParseExpression())
@@ -289,8 +289,8 @@ static std::unique_ptr<ExprAST> ParseList() {
       else
         return LogError("non expr as arg at proc application");
     }
-    // return llvm::make_unique<CallExprAST>(std::move(Callee), std::move(Args));
-    return llvm::make_unique<CallExprAST>(Callee, std::move(Args));
+    return llvm::make_unique<CallExprAST>(std::move(Callee), std::move(Args), sym);
+    // return llvm::make_unique<CallExprAST>(Callee, std::move(Args));
   }
 }
 
@@ -323,7 +323,7 @@ void HandleCommand() {
        ExprAST *ast_ptr = ast.release();
        FunctionAST *fn_ptr = (FunctionAST*) (ast_ptr);
        std::unique_ptr<FunctionAST> fn(fn_ptr);
-       fn->print();
+       // fn->print();
        fn->registerMe();
        BFUNCTIONS.push_back(std::move(fn));
 /*
@@ -337,7 +337,7 @@ void HandleCommand() {
        }
 */
     } else {
-      std::cout << "prepare to clear buffered functions " << BFUNCTIONS.size() << std::endl;
+      // std::cout << "prepare to clear buffered functions " << BFUNCTIONS.size() << std::endl;
       // clear buffered definition
       for(unsigned i = 0, e = BFUNCTIONS.size(); i != e; ++i) {
         if (auto FnIR = BFUNCTIONS[i]->codegen()) {

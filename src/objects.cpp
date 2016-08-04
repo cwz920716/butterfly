@@ -6,6 +6,14 @@ char *LogErrorN(const char *Str) {
   return nullptr;
 }
 
+#define ISA(val, Ty) if (val->type == Ty) return Ty;
+
+extern "C"
+int32_t bt_typeof(char *val) {
+  bt_value_t *bt_val = (bt_value_t *) val;
+  return bt_val->type;
+}
+
 extern "C"
 char *bt_new_int64(int num) {
   // for now, just use malloc
@@ -115,6 +123,11 @@ char *bt_get_callable(char *val) {
     return (char *) data[0];
   }
 
+  if (bt_is_closure(fptr)) {
+    data = bt_value_data(fptr);
+    return (char *) data[0]; 
+  }
+
   return LogErrorN("not a callable object.");
 }
 
@@ -205,8 +218,10 @@ char *bt_set_box(char *box, char *new_val) {
   return LogErrorN("not a box object.");
 }
 
-extern "C" char *bt_error(void) {
-  return LogErrorN("Unknown runtime error.");
+extern "C" char *bt_error() {
+  LogErrorN("Runtime error: not a callable object");
+  exit(-1);
+  return LogErrorN("This should NEVER be printed out.");
 }
 
 bool bt_is_int64(bt_value_t *val) {

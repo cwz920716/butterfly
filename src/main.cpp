@@ -18,17 +18,17 @@ void Driver::Initialize() {
   TheFPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
 
   // Do simple "peephole" optimizations and bit-twiddling optzns.
-  // TheFPM->add(llvm::createInstructionCombiningPass());
+  TheFPM->add(llvm::createInstructionCombiningPass());
   // Promote allocas to registers.
-  // TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
+  TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
   // Do simple "peephole" optimizations and bit-twiddling optzns.
-  // TheFPM->add(llvm::createInstructionCombiningPass());
+  TheFPM->add(llvm::createInstructionCombiningPass());
   // Reassociate expressions.
-  // TheFPM->add(llvm::createReassociatePass());
+  TheFPM->add(llvm::createReassociatePass());
   // Eliminate Common SubExpressions.
-  // TheFPM->add(llvm::createGVNPass());
+  TheFPM->add(llvm::createGVNPass());
   // Simplify the control flow graph (deleting unreachable blocks, etc).
-  // TheFPM->add(llvm::createCFGSimplificationPass());
+  TheFPM->add(llvm::createCFGSimplificationPass());
 
   TheFPM->doInitialization();
 
