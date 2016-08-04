@@ -59,7 +59,8 @@ int main(int argc, char **argv) {
   for(auto const &fentry : FUNCTIONS) {
     std::string fname = fentry.first;
     std::cerr << fname << ":" << std::endl;
-    fentry.second->print();
+    if (fname.find("__anon_expr") == std::string::npos)
+      fentry.second->print();
   }
 
   return 0;

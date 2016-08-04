@@ -159,7 +159,7 @@ char *bt_closure(char *fp, int n, char **members) {
   }
 
   ptr->type = ClosureTy;
-  ptr->size = n;
+  ptr->size = n + 1;
   bt_value_t **data = bt_value_data(ptr);
   data[0] = (bt_value_t *) fp;
 

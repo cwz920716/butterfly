@@ -8,6 +8,7 @@
 
 #define CUR_TOK (Driver::instance()->CurTok)
 #define FUNCTIONS (Driver::instance()->Functions)
+#define COMMANDS (Driver::instance()->Commands)
 
 static Token getNextToken() { return Driver::instance()->getNextToken(); }
 
@@ -279,8 +280,8 @@ void HandleCommand() {
       std::vector<ExprAST*> body;
       body.push_back(ast);
       auto fn = new FunctionAST(proto, body);
-      fn->print();
-      FUNCTIONS[fn->defName()] = fn;
+      // fn->print();
+      COMMANDS.push_back(fn);
     }
   } else {
     // Skip token for error recovery.

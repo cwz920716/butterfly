@@ -380,6 +380,7 @@ public:
   const char *source;
   Token CurTok;
   std::map<std::string, FunctionAST*> Functions; // global function namespace
+  std::vector<FunctionAST*> Commands;
   FunctionScope *TheScope;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 
