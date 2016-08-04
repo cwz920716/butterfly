@@ -31,7 +31,7 @@ std::string token_desc[] = {
                 "not",
                 "box",
                 "unbox",
-                "setbox",
+                "setbox!",
                 "nil",
                 "tok_symbol",
                 "tok_integer",

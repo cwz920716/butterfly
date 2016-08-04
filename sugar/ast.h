@@ -288,7 +288,7 @@ public:
       : FPtr(FPtr) {}
 
   void print() override { 
-    std::cout << "(new-closure " << FPtr; 
+    std::cout << "(closure " << FPtr; 
     // Callee->print(); std::cout << ": ";
     for (auto &Field : Fields) {
       std::cout << " "; Field->print();
