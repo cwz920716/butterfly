@@ -284,39 +284,66 @@ llvm::Value *GetFieldExprAST::codegen() {
 
 llvm::Value *CallExprAST::codegen() {
   // Look up the name in the global module table.
-  llvm::Function *CalleeF = getFunction(Callee);
   std::string bt_get_callable_sym("bt_get_callable");
+  std::string bt_typeof_sym("bt_typeof");
   std::string bt_error_sym("bt_error");
   std::vector<llvm::Value *> ArgsV;
 
-  if (!CalleeF) {
-    // if not in global module, then test if it is a local var, which could be fptr or closure
-    llvm::Value *V = SCOPE->NamedValues[Callee];
+  bool is_static = false;
+  llvm::Function *CalleeF = getFunction(Symbol_);
+  if (CalleeF) {
+    is_static = true;
+  }
+
+  if (!is_static) {
+    // if not a static dispatch, then test if it is fptr or closure
+    llvm::Value *V = Callee->codegen();
     if (!V)
       return LogErrorV("Unknown function referenced");
-    llvm::Value *Callable = BUILDER.CreateLoad(V, Callee.c_str());
+    llvm::Value *Callable = V;
     // test callable...
     llvm::Function *getCallable = getFunction(bt_get_callable_sym);
     ArgsV.push_back(Callable);
-    llvm::Value *maybeFP = BUILDER.CreateCall(getCallable, ArgsV, "fptr");
+    llvm::Value *maybeFP = BUILDER.CreateCall(getCallable, ArgsV, "callable");
     ArgsV.clear();
+    
     llvm::Value *pred = BUILDER.CreateICmpEQ(maybeFP, 
-                                             llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT)), "fptest");
+                                             llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT)), "calltest");
 
     llvm::Function *TheFunction = BUILDER.GetInsertBlock()->getParent();
-    llvm::BasicBlock *badBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "badFP", TheFunction);
-    llvm::BasicBlock *afterBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "after");
+    llvm::BasicBlock *badBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "badcall", TheFunction);
+    llvm::BasicBlock *passBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "pass");
+    llvm::BasicBlock *fptrBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "functptr");
+    llvm::BasicBlock *closBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "closure");
+    llvm::BasicBlock *mergeBB = llvm::BasicBlock::Create(LLVM_CONTEXT, "merge");
 
-    BUILDER.CreateCondBr(pred, badBB, afterBB);
-    // Emit then value.
+    BUILDER.CreateCondBr(pred, badBB, passBB);
     BUILDER.SetInsertPoint(badBB);
     llvm::Function *error = getFunction(bt_error_sym);
     BUILDER.CreateCall(error, ArgsV, "error");
-    BUILDER.CreateBr(afterBB);
+    ArgsV.clear();
+    BUILDER.CreateBr(passBB);
 
-    // Emit merge block.
-    TheFunction->getBasicBlockList().push_back(afterBB);
-    BUILDER.SetInsertPoint(afterBB);
+    // Emit pass block.
+    TheFunction->getBasicBlockList().push_back(passBB);
+    BUILDER.SetInsertPoint(passBB);
+    // Now test if it is a functin ptr
+    llvm::Function *typeOf = getFunction(bt_typeof_sym);
+    ArgsV.push_back(Callable);
+    llvm::Value *type = BUILDER.CreateCall(typeOf, ArgsV, "type");
+    ArgsV.clear();
+    llvm::Value *pred2 = BUILDER.CreateICmpEQ(type,
+                                              llvm::ConstantInt::get(LLVM_CONTEXT, llvm::APInt(32, FunctionRefTy, true)), "fptest");
+
+    std::vector<llvm::Value *> ArgValues;
+    for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+      ArgValues.push_back(Args[i]->codegen());
+    }
+
+    BUILDER.CreateCondBr(pred2, fptrBB, closBB);
+
+    TheFunction->getBasicBlockList().push_back(fptrBB);
+    BUILDER.SetInsertPoint(fptrBB);
     // Make the function type:  double(double,double) etc.
     std::vector<llvm::Type *> I8Ptrs(Args.size(), llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
     llvm::FunctionType *FT =
@@ -324,12 +351,37 @@ llvm::Value *CallExprAST::codegen() {
     llvm::Value *FP = BUILDER.CreateBitCast(maybeFP, llvm::PointerType::get(FT, 0), "fptr");
 
     for (unsigned i = 0, e = Args.size(); i != e; ++i) {
-      ArgsV.push_back(Args[i]->codegen());
-      if (!ArgsV.back())
-        return nullptr;
+      ArgsV.push_back(ArgValues[i]);
     }
+    llvm::Value *call1 = BUILDER.CreateCall(FP, ArgsV, "calltmp");
+    ArgsV.clear();
+    BUILDER.CreateBr(mergeBB);
 
-    return BUILDER.CreateCall(FP, ArgsV, "calltmp");
+    TheFunction->getBasicBlockList().push_back(closBB);
+    BUILDER.SetInsertPoint(closBB);
+    std::vector<llvm::Type *> I8Ptrs_Clos(Args.size() + 1, llvm::Type::getInt8PtrTy(LLVM_CONTEXT));
+    llvm::FunctionType *FT_Clos =
+        llvm::FunctionType::get(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), I8Ptrs_Clos, false);
+    llvm::Value *FP_Clos = BUILDER.CreateBitCast(maybeFP, llvm::PointerType::get(FT_Clos, 0), "fptr");
+ 
+    // push the closure object first
+    ArgsV.push_back(Callable);
+    for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+      ArgsV.push_back(ArgValues[i]);
+    }
+    llvm::Value *call2 = BUILDER.CreateCall(FP_Clos, ArgsV, "calltmp");
+    ArgsV.clear();
+    BUILDER.CreateBr(mergeBB);
+
+    // Emit merge value
+    TheFunction->getBasicBlockList().push_back(mergeBB);
+    BUILDER.SetInsertPoint(mergeBB);
+    llvm::PHINode *PN =
+      BUILDER.CreatePHI(llvm::Type::getInt8PtrTy(LLVM_CONTEXT), 2, "phi");
+
+    PN->addIncoming(call1, fptrBB);
+    PN->addIncoming(call2, closBB);
+    return PN;
   } else {
     // If argument mismatch error.
     if (CalleeF->arg_size() != Args.size())
@@ -429,6 +481,7 @@ llvm::Value *FunctionAST::codegen() {
 void init_butterfly_per_module(void) {
   // printf("init start...\n");
 
+  std::string bt_typeof_sym("bt_typeof");
   std::string bt_new_int64_sym("bt_new_int64"), num_sym("num");
   std::string bt_new_fptr_sym("bt_new_fptr"), fp_sym("fp"), nargs_sym("nargs");
   std::string bt_box_sym("bt_box");
@@ -446,6 +499,19 @@ void init_butterfly_per_module(void) {
 
   std::vector<std::string> formals_name;
   std::vector<llvm::Type *> formals_type;
+  
+  // initialize bt_typeof
+  formals_name.push_back(val_sym);
+  formals_type.push_back( llvm::Type::getInt8PtrTy(LLVM_CONTEXT) );
+  FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(LLVM_CONTEXT), formals_type, false);
+  F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, bt_typeof_sym, MODULE.get());
+  // Set names for all arguments.
+  Idx = 0;
+  for (auto &Arg : F->args())
+    Arg.setName(formals_name[Idx++]);
+  // cleanup 
+  formals_name.clear();
+  formals_type.clear();
 
   // initialize bt_new_int64
   formals_name.push_back(num_sym);
