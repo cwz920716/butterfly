@@ -25,6 +25,7 @@
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/ExecutionEngine/Orc/LambdaResolver.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/Orc/GlobalMappingLayer.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/Support/DynamicLibrary.h"
@@ -42,11 +43,13 @@ class KaleidoscopeJIT {
 public:
   typedef ObjectLinkingLayer<> ObjLayerT;
   typedef IRCompileLayer<ObjLayerT> CompileLayerT;
+  typedef GlobalMappingLayer<CompileLayerT> GlobalMappingLayerT;
   typedef CompileLayerT::ModuleSetHandleT ModuleHandleT;
 
   KaleidoscopeJIT()
       : TM(EngineBuilder().selectTarget()), DL(TM->createDataLayout()),
-        CompileLayer(ObjectLayer, SimpleCompiler(*TM)) {
+        CompileLayer(ObjectLayer, SimpleCompiler(*TM)),
+        MappingLayer(CompileLayer) {
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
   }
 
@@ -79,6 +82,14 @@ public:
 
   JITSymbol findSymbol(const std::string Name) {
     return findMangledSymbol(mangle(Name));
+  }
+
+  
+  /// add an existing object (function or pointer) via its
+  /// mangled name. This function is best used for unmangled
+  /// c style names.
+  void addGlobalMapping(StringRef Name, void* Addr) {
+    MappingLayer.setGlobalMapping(Name, (uintptr_t) Addr);
   }
 
 private:
@@ -116,6 +127,7 @@ private:
   const DataLayout DL;
   ObjLayerT ObjectLayer;
   CompileLayerT CompileLayer;
+  GlobalMappingLayerT MappingLayer;
   std::vector<ModuleHandleT> ModuleHandles;
 };
 

@@ -1,9 +1,22 @@
 #include "common.h"
 #include "ast.h"
 
+bt_gcframe_t *bt_pgcstack;
+
 char *LogErrorN(const char *Str) {
   fprintf(stderr, "Error: %s\n", Str);
   return nullptr;
+}
+
+static void stacktrace() {
+  bt_gcframe_t *head = bt_pgcstack;
+  int n = 0;
+  while (head) {
+    std::cout << "nroots = " << head->nroots << std::endl;
+    head = head->prev;
+    n++;
+  }
+  std::cout << "stack_depth = " << n << std::endl;
 }
 
 #define ISA(val, Ty) if (val->type == Ty) return Ty;
@@ -16,6 +29,7 @@ int32_t bt_typeof(char *val) {
 
 extern "C"
 char *bt_new_int64(int num) {
+  stacktrace();
   // for now, just use malloc
   // gc support will be added in future
   uintptr_t num_l = num;

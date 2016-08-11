@@ -239,7 +239,7 @@ public:
 class FunctionScope {
 public:
   // scope of function local
-  std::map<std::string, llvm::AllocaInst *> NamedValues;
+  std::map<std::string, llvm::Value *> NamedValues;
   llvm::Function *TheFunction;
   FunctionScope() {}
 };
@@ -339,6 +339,8 @@ public:
   std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos; // global function namespace
   std::vector<std::unique_ptr<FunctionAST>> BufferedFunctions;
   FunctionScope *TheScope;
+  llvm::Value *btpgcstack_var;
+  llvm::Value *gcframe;
 
   Token getNextToken() { return CurTok = lex.getNextToken(); } 
 

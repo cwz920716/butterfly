@@ -10,8 +10,11 @@
 #define BUILDER (Driver::instance()->Builder)
 #define MODULE (Driver::instance()->TheModule)
 #define FPM (Driver::instance()->TheFPM)
+#define JIT (Driver::instance()->TheJIT)
 #define SCOPE (Driver::instance()->TheScope)
 #define FUNCTIONPROTOS (Driver::instance()->FunctionProtos)
+#define btpgcstack_var (Driver::instance()->btpgcstack_var)
+#define gcframe (Driver::instance()->gcframe)
 
 llvm::Value *LogErrorV(const char *Str) {
   LogError(Str);
@@ -417,11 +420,31 @@ llvm::Function *PrototypeAST::codegen() {
 void FunctionAST::allocaArgPass() {
   llvm::Function *TheFunction = Scope.TheFunction;
 
+  llvm::Type *T_pvalue = llvm::Type::getInt8PtrTy(LLVM_CONTEXT);
+  llvm::Type *T_ppvalue = llvm::PointerType::get(T_pvalue, 0);
+  llvm::Type *T_int32 = llvm::Type::getInt32Ty(LLVM_CONTEXT);
+  llvm::Type *T_int64 = llvm::Type::getInt64Ty(LLVM_CONTEXT);
+  llvm::Type *T_size = T_int64;
+  llvm::Type *T_psize = llvm::PointerType::get(T_size, 0);
+
+  int n_roots = TheFunction->arg_size();
+  llvm::Value *argTemp = BUILDER.CreateAlloca(T_pvalue,
+                                      llvm::ConstantInt::get(T_int32, n_roots+2));
+  gcframe = argTemp;
+  argTemp = BUILDER.CreateConstGEP1_32(argTemp, 2);
+  BUILDER.CreateStore(llvm::ConstantInt::get(T_size, n_roots<<1),
+                      BUILDER.CreateBitCast(BUILDER.CreateConstGEP1_32(gcframe, 0), T_psize));
+  BUILDER.CreateStore(BUILDER.CreateLoad(btpgcstack_var),
+                      BUILDER.CreateBitCast(BUILDER.CreateConstGEP1_32(gcframe, 1), 
+                                            llvm::PointerType::get(T_ppvalue, 0)));
+  BUILDER.CreateStore(gcframe, btpgcstack_var);
+
+  int varnum = 0;
   for (auto &Arg : TheFunction->args()) {
     llvm::Value *arg = &Arg;
 
     // Create an alloca for this variable.
-    llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
+    auto Alloca = BUILDER.CreateConstGEP1_32(argTemp, varnum++); // CreateEntryBlockAlloca(TheFunction, Arg.getName());
     // Store the initial value into the alloca.
     BUILDER.CreateStore(arg, Alloca);
     // Add arguments to variable symbol table.
@@ -463,6 +486,13 @@ llvm::Value *FunctionAST::codegen() {
   }
 
   if (RetVal) {
+    // pop the gc frame
+    llvm::Type *T_pvalue = llvm::Type::getInt8PtrTy(LLVM_CONTEXT);
+    llvm::Type *T_ppvalue = llvm::PointerType::get(T_pvalue, 0);
+    llvm::Value *gcpop = BUILDER.CreateConstGEP1_32(gcframe, 1);
+    BUILDER.CreateStore(BUILDER.CreateBitCast(BUILDER.CreateLoad(gcpop, false), T_ppvalue),
+                        btpgcstack_var);
+
     // Finish off the function.
     BUILDER.CreateRet(RetVal);
     FPM->run(*TheFunction);
@@ -663,6 +693,15 @@ void init_butterfly_per_module(void) {
 
   // printf("init successful!\n");
   // MODULE->dump();
+
+  llvm::Type *T_pvalue = llvm::Type::getInt8PtrTy(LLVM_CONTEXT);
+  llvm::Type *T_ppvalue = llvm::PointerType::get(T_pvalue, 0);
+  btpgcstack_var =
+        new llvm::GlobalVariable(*MODULE, T_ppvalue,
+                           true, llvm::GlobalVariable::ExternalLinkage,
+                           NULL, "bt_pgcstack");
+  // Should I add global mapping?
+  JIT->addGlobalMapping("bt_pgcstack", (char *)&bt_pgcstack);
 
   return;
 }

@@ -34,6 +34,14 @@ typedef struct _bt_fptr_t {
   int64_t nargs;
 } bt_fptr_t;
 
+typedef struct _bt_gcframe_t {
+    intptr_t nroots;
+    struct _bt_gcframe_t *prev;
+    // actual roots go here
+} bt_gcframe_t;
+
+extern bt_gcframe_t *bt_pgcstack;
+
 #define bt_value_data(t) ((bt_value_t**)((char*)(t) + sizeof(bt_value_t)))
 
 extern char *bt_true, *bt_false;
