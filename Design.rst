@@ -19,6 +19,11 @@ A variable can be stored on stack or heap or either, it is up to backends to dec
 A nameless value is called 'slot' in that it can hold something like 'variable' but it is only for temporary use and (usually) immutable and unaddressable.
 Nil is a special value which is a place holder for some instructions like branch, label, etc.
 
+Also, a value can be callable is it meets one of the following consitions:
+
+* it is global function name variable (all functions are global, but their access may be restricted)
+* it is a closure, i.e., callable object
+
 An operand can be one of the followings:
 
 * a value, which can be either a variable or slot,
@@ -35,9 +40,38 @@ This section explains more details on instruction structure and semantics.
 
 Control Instructions
 ~~~~~~~~~~~~~~~~~~~~
+Goto Inst: OP_GOTO, <Label ID>, -> Nil
 
-Object Instructions
+If Inst: OP_IF, <Value Predicate>, <Lable ID Then>, <Lable ID Else>, -> Nil
+
+Variable Instructions
 ~~~~~~~~~~~~~~~~~~~
+-Variable Define Inst: OP_DEFINE, <Variable Name>, <Value Init>, -> Nil
 
-Arithmetic Instructions
+-Variable Read Inst: OP_VAR, <Variable Name> -> <Variable?>
+
+-Varaible Write Inst: OP_SET, <Variable Name>, <Value> -> Nil
+
+Heap Object Instructions
+~~~~~~~~~~~~~~~~~~~~~~~~
+Box Inst: OP_BOX, <Value> -> <NewSlot>
+
+Unbox Inst: OP_UNBOX, <Value> -> <NewSlot>
+
+Setbox Inst: OP_SETBOX, <Value Box>, <Value New>, -> Nil
+
+GetConstfiled Inst: OP_GETFIELD, <Value>, <Const Int> -> <NewSlot>
+
+Closure Inst: OP_CLOSURE, <Function Variable>, <Value Arg0>, ..., -> <NewSlot>
+
+Operational Instructions
 ~~~~~~~~~~~~~~~~~~~~~~~
+Phi2 Inst: OP_PHI2, <Value A>:<Label ID A>, <Value B>:<Label ID B>, -> <NewSlot>
+
+Arithmetic/Logic Inst: OP_ADD, <Value A>, <Value B>, -> <NewSlot>
+
+Int Inst: OP_INT, <Const Int>, -> <NewSlot>
+
+Float Inst: OP_FLOAT, <Const Float>, -> <NewSlot>
+
+Symbol Inst: OP_SYMBOL, <Const Symbol>, -> <NewSlot>
