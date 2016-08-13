@@ -1,6 +1,6 @@
-*********
+=========
 IR Design
-*********
+=========
 
 This file summarizes an internal IR deign for Butterfly LISP. 
 This is Low-level IR, which can br interpreted or JIT-ed to machine code or LLVM IR.
@@ -31,4 +31,13 @@ More details can be found in next section.
 
 Instruction Semantics
 ---------------------
+This section explains more details on instruction structure and semantics.
 
+Control Instructions
+~~~~~~~~~~~~~~~~~~~~
+
+Object Instructions
+~~~~~~~~~~~~~~~~~~~
+
+Arithmetic Instructions
+~~~~~~~~~~~~~~~~~~~~~~~
