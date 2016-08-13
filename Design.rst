@@ -46,11 +46,9 @@ If Inst: OP_IF, <Value Predicate>, <Lable ID Then>, <Lable ID Else>, -> Nil
 
 Variable Instructions
 ~~~~~~~~~~~~~~~~~~~
--Variable Define Inst: OP_DEFINE, <Variable Name>, <Value Init>, -> Nil
+Variable Define Inst: OP_DEFINE, <Variable Name>, <Value Init>, -> Nil
 
--Variable Read Inst: OP_VAR, <Variable Name> -> <Variable?>
-
--Varaible Write Inst: OP_SET, <Variable Name>, <Value> -> Nil
+Varaible Write Inst: OP_SET, <Variable Name>, <Value> -> Nil
 
 Heap Object Instructions
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -68,7 +66,37 @@ Operational Instructions
 ~~~~~~~~~~~~~~~~~~~~~~~
 Phi2 Inst: OP_PHI2, <Value A>:<Label ID A>, <Value B>:<Label ID B>, -> <NewSlot>
 
+Call Inst: OP_CALL, <Value Callable>
+
 Arithmetic/Logic Inst: OP_ADD, <Value A>, <Value B>, -> <NewSlot>
+
+* OP_ADD
+
+* OP_SUB
+
+* OP_MUL
+
+* OP_DIV
+
+* OP_NEG
+
+* OP_GT
+
+* OP_GTE
+
+* OP_LT
+
+* OP_LTE
+
+* OP_EQ
+
+* OP_AND
+
+* OP_OR
+
+* OP_XOR
+
+* OP_NOT
 
 Int Inst: OP_INT, <Const Int>, -> <NewSlot>
 
