@@ -20,8 +20,10 @@ A nameless value is called 'slot' in that it can hold something like 'variable' 
 Nil is a special value which is a place holder for some instructions like branch, label, etc.
 
 An operand can be one of the followings:
+
 * a value, which can be either a variable or slot,
 * a literal constatnt, however, this constant could be a label ID or a real number depends on instruction semantics.
+
 Usually an operand's type is fixed at certain location.
 
 An operator is what we should do with the instruction, common operators are ADD, SUB, GOTO etc.
