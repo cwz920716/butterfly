@@ -5,7 +5,8 @@ IR Design
 This file summarizes an internal IR deign for Butterfly LISP. 
 This is Low-level IR, which can br interpreted or JIT-ed to machine code or LLVM IR.
 It is designed to simplify compiler/runtime code to facilitate runtime interrupt and optimization. 
-In high level, this IR is a value-oriented, dynamic-typed, single-opertor-multi-operands bytecode.
+In high level, this IR is a value-oriented, dynamic-typed, single-opertor-multi-operands bytecode. 
+This IR is supposed to be LLVM-like s.t. it can be easily translated to LLVM while enabling high-level type-free optimization like value numbering, etc.
 
 The code name of this IR is undefined yet, but I am considering following options: Lightning, ColdSteel, etc.
 
@@ -59,6 +60,8 @@ Unbox Inst: OP_UNBOX, <Value> -> <NewSlot>
 Setbox Inst: OP_SETBOX, <Value Box>, <Value New>, -> Nil
 
 GetConstfiled Inst: OP_GETFIELD, <Value>, <Const Int> -> <NewSlot>
+
+SetConstfiled Inst: OP_SETFIELD, <Value>, <Const Int> -> <NewSlot>
 
 Closure Inst: OP_CLOSURE, <Function Variable>, <Value Arg0>, ..., -> <NewSlot>
 
