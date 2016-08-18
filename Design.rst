@@ -20,6 +20,8 @@ A variable can be stored on stack or heap or either, it is up to backends to dec
 A nameless value is called 'slot' in that it can hold something like 'variable' but it is only for temporary use and (usually) immutable and unaddressable.
 Nil is a special value which is a place holder for some instructions like branch, label, etc.
 
+Instruction and Value *must* origin from the same parent cloass in OOP implementation.
+
 Also, a value can be callable is it meets one of the following consitions:
 
 * it is global function name variable (all functions are global, but their access may be restricted)
@@ -64,6 +66,8 @@ GetConstfiled Inst: OP_GETFIELD, <Value>, <Const Int> -> <NewSlot>
 SetConstfiled Inst: OP_SETFIELD, <Value>, <Const Int> -> <NewSlot>
 
 Closure Inst: OP_CLOSURE, <Function Variable>, <Value Arg0>, ..., -> <NewSlot>
+
+Cons Inst: OP_CONS, <Value Arg0>, <Value Arg1> -> <NewSlot>
 
 Operational Instructions
 ~~~~~~~~~~~~~~~~~~~~~~~
