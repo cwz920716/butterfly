@@ -12,15 +12,21 @@ The code name of this IR is undefined yet, but I am considering following option
 
 Instructions and Values
 -----------------------
+In this IR, there will be three main conceptual types: Literal Constant, Instruction, and Value.
 
-An instruction contain up to one operator, any number of operands, and return one value.
+Literal Constant is *not* operatable, i.e., most instruction cannot read/write literal constants, they must be converted to value first. This is in order to protect from implementations where some literal constants will be allocated on heap and enable IR level optimizations when we can sttaically determine a value is equivalate to a const.
+
+An instruction contain up to one operator, any number of operands, and returns at most one value.
+
 A value is what returned by an instruction, which you can read and write. A value can be classified into two types: named and nameless. 
+A value can also be a global var name, including function name. As LLVM, global var will have '@' and local var will have '%'.
+
 A named value is also called 'variable' in the sense they can are visible to developers in original program, and potentially mutable, and always have an address.
 A variable can be stored on stack or heap or either, it is up to backends to decide where to put a variable.
 A nameless value is called 'slot' in that it can hold something like 'variable' but it is only for temporary use and (usually) immutable and unaddressable.
 Nil is a special value which is a place holder for some instructions like branch, label, etc.
 
-Instruction and Value *must* origin from the same parent cloass in OOP implementation.
+Note: Instruction and Value *must* origin from the same parent cloass in OOP implementation.
 
 Also, a value can be callable is it meets one of the following consitions:
 
@@ -65,15 +71,19 @@ GetConstfiled Inst: OP_GETFIELD, <Value>, <Const Int> -> <NewSlot>
 
 SetConstfiled Inst: OP_SETFIELD, <Value>, <Const Int> -> <NewSlot>
 
+Tuple Inst: OP_TUPLE, <Value T0>, <Value T1>, ..., -> <NewSlot>
+
 Closure Inst: OP_CLOSURE, <Function Variable>, <Value Arg0>, ..., -> <NewSlot>
 
 Cons Inst: OP_CONS, <Value Arg0>, <Value Arg1> -> <NewSlot>
 
 Operational Instructions
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 Phi2 Inst: OP_PHI2, <Value A>:<Label ID A>, <Value B>:<Label ID B>, -> <NewSlot>
 
-Call Inst: OP_CALL, <Value Callable>
+Call Inst: OP_CALL, <Value Callable>, <Value Args...>
+
+Return Inst: OP_RET, <Value X>
 
 Arithmetic/Logic Inst: OP_ADD, <Value A>, <Value B>, -> <NewSlot>
 
@@ -97,6 +107,8 @@ Arithmetic/Logic Inst: OP_ADD, <Value A>, <Value B>, -> <NewSlot>
 
 * OP_EQ
 
+* OP_NEQ
+
 * OP_AND
 
 * OP_OR
@@ -105,8 +117,28 @@ Arithmetic/Logic Inst: OP_ADD, <Value A>, <Value B>, -> <NewSlot>
 
 * OP_NOT
 
+Literal-to-Value Instructions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Int Inst: OP_INT, <Const Int>, -> <NewSlot>
 
 Float Inst: OP_FLOAT, <Const Float>, -> <NewSlot>
 
 Symbol Inst: OP_SYMBOL, <Const Symbol>, -> <NewSlot>
+
+Metalinguistic Instructions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+It is common for scripting language to support stuff like eval, etc.
+Hence it is important for our IR to do so.
+Below is the design of metalinguistic instructions
+
+Quote instruction (OP_QUOTE) is a quoted instruction which instead of evaluating the instruction and returning evaluated values, it will return evaluatable form of the instruction, i.e., something can be feed to the evaluator like eval() and make effects. Quote instruction can have following forms:
+
+* quote a literal constant will be evaluated to the numerical/mathematical/logical value of that constant
+* quote a variable will be evaluated to *that* variable in the eval() environment
+* quote an instruction is used to form quoted expression, like :(a + b) will be translated to three instructions: _1 = quote a, _2 = quote b, _3 = quote add, _1, _2, and when you eval _3, it will evaluate to the sum of a and b in the evaluator environment
+* quote a slot is kind of tricky, it will be like escaping a variable in Julia, and it works like quoting a literal constant in the eval() because slot is *never* bind to environment, but this literal constant is nt decided at compile time, instead, it is a runtime constant depending on the value of that slot. Say you have a instruction looks like this: 
+* Also note a well formed quote instruction should not quote unquoted stuff unless it is quoting literal/variable/slot
+
+Eval Instruction is like this: _3 = eval _2 where _2 is quoted form. It will evaluate _2 according to the current environment.
+
+Environment is a symbol table where key is the variable name and value is the current value of the environment. define/assignment/call/return/eval can modify the environment. The definition of environment is the stack frames of function call trace *AND* global variables.
