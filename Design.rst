@@ -2,13 +2,23 @@
 IR Design
 =========
 
-This file summarizes an internal IR deign for Butterfly LISP. 
+This file summarizes an internal IR deign for Butterfly project. 
 This is Low-level IR, which can br interpreted or JIT-ed to machine code or LLVM IR.
 It is designed to simplify compiler/runtime code to facilitate runtime interrupt and optimization. 
 In high level, this IR is a value-oriented, dynamic-typed, single-opertor-multi-operands bytecode. 
 This IR is supposed to be LLVM-like s.t. it can be easily translated to LLVM while enabling high-level type-free optimization like value numbering, etc.
+This IR should be viewed as an assembly language for *ANY* scripting languages, although it borrows idea from Scheme LISP and Julia
+This IR is scripting-complete, i.e., it can be used to construct any scripting language program.
 
-The code name of this IR is undefined yet, but I am considering following options: Lightning, ColdSteel, etc.
+The code name of this IR is undefined yet, but here is what I am thinking of: *Lightning*, *ColdSteel*, *Azure*, *Trails*, etc.
+
+Basics
+~~~~~~
+
+we will show some basic concepts through examples. More explanation will be introduced later gradually. The example will be shown in LISP first and then translate to IR.
+
+Example 1: (+ 1 2)
+
 
 Instructions and Values
 -----------------------
