@@ -19,6 +19,14 @@ we will show some basic concepts through examples. More explanation will be intr
 
 Example 1: (+ 1 2)
 
+           _1 = Int 1
+
+           _2 = Int 2
+
+           _3 = Add _1 _2
+
+Definitions
+~~~~~~~~~~~
 
 Instructions and Values
 -----------------------
