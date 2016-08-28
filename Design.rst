@@ -43,24 +43,41 @@ Example 2: (* (+ 1 1) (1.0 / 2))
 
 Example 3: (define a 10) (if (< a 0) -a a)
 
-           Vdef a
+           Vdefine a
+
            _1 = Int 10
+
            Vstore a _1
+
            _2 = Vload a
+
            _3 = Int 0
+
            _4 = Lt _2 _3
+
            If _4 then L1 else L2
+
            Lable L1
+
            _5 = Vload a
+
            _6 = Neg a
+
            Goto L3
+
            Lable L2
+
            _7 = Vload a
+
            Goto L3
+
            Label L3
+
            _8 = Phi _6 from L1 or _7 from L2
            
 Example 4: (define (square x) (* x x))
+
+
 
 Definitions
 ~~~~~~~~~~~
