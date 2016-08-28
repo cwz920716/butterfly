@@ -43,13 +43,13 @@ Example 2: (* (+ 1 1) (1.0 / 2))
 
 Example 3: (define a 10) (if (< a 0) -a a)
 
-           Vdefine a
+           Vdefine %a
 
            _1 = Int 10
 
-           Vstore a _1
+           Vstore %a _1
 
-           _2 = Vload a
+           _2 = Vload %a
 
            _3 = Int 0
 
@@ -59,15 +59,15 @@ Example 3: (define a 10) (if (< a 0) -a a)
 
            Lable L1
 
-           _5 = Vload a
+           _5 = Vload %a
 
-           _6 = Neg a
+           _6 = Neg %a
 
            Goto L3
 
            Lable L2
 
-           _7 = Vload a
+           _7 = Vload %a
 
            Goto L3
 
@@ -77,6 +77,51 @@ Example 3: (define a 10) (if (< a 0) -a a)
            
 Example 4: (define (square x) (* x x))
 
+           function @square (%x):
+
+             Label L0
+
+             _1 = Vload %x
+
+             _2 = Vload %x
+
+             _3 = Mult _1 _2
+ 
+             Ret _3
+
+           end
+
+           
+Example 5: (define (make-withdraw balance) (lambda (amount) (set! balance (- balance amount)) balance))
+
+           closure ##1:
+             @lambda-gensym-##1
+             %balance
+           end
+           
+           function @lambda-gensym-##1 (%self, %amount):
+             Label L0
+             _1 = Vload %self
+             _2 = GetField _1 1
+             _3 = Unbox _2
+             _4 = Vload %amount
+             _5 = Sub _3 _4
+             Setbox _2 _5
+             _6 = Vload %self
+             _7 = GetField _6 1
+             _8 = Unbox _7
+             Ret _8
+           end
+
+           function @make-withdraw (%balance):
+             Label L0
+             _1 = Vload %balance
+             _2 = Box _1
+             Vstore %balance _2
+             _3 = Vload %balance
+             _4 = Closure @lambda-gensym-##1 _3
+             Ret _4
+           end
 
 
 Definitions
