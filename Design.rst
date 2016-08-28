@@ -95,32 +95,55 @@ Example 4: (define (square x) (* x x))
 Example 5: (define (make-withdraw balance) (lambda (amount) (set! balance (- balance amount)) balance))
 
            closure ##1:
+
              @lambda-gensym-##1
+
              %balance
+
            end
            
            function @lambda-gensym-##1 (%self, %amount):
+
              Label L0
+
              _1 = Vload %self
+
              _2 = GetField _1 1
+
              _3 = Unbox _2
+
              _4 = Vload %amount
+
              _5 = Sub _3 _4
+
              Setbox _2 _5
+
              _6 = Vload %self
+
              _7 = GetField _6 1
+
              _8 = Unbox _7
+
              Ret _8
+
            end
 
            function @make-withdraw (%balance):
+
              Label L0
+
              _1 = Vload %balance
+
              _2 = Box _1
+
              Vstore %balance _2
+
              _3 = Vload %balance
+
              _4 = Closure @lambda-gensym-##1 _3
+
              Ret _4
+
            end
 
 
