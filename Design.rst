@@ -152,35 +152,41 @@ Example 8: macro time(ex) local t0 = time() local val = $ex local t1 = time() [t
 
            macro @time(%ex)
 
-           Label L0
+             Label L0
 
-           Vdefine %t0
+             _1 = Quote Vdefine %t0
 
-           _1 = Quote Call @time
+             _2 = Quote Call @time
 
-           _2 = Quote Vstore %t0 _1
+             _3 = Quote Vstore %t0 _1
 
-           _3 = Vload %ex
+             _4 = Quote Vdefine %val
 
-           _4 = Quote Call @time
+             _5 = Vload %ex
 
-           _5 = Quote Vstore %t1 _4
+             _6 = Quote Vstore %val _5
 
-           ...
+             _7 = Quote Vdefine %t1
 
-           _a = Quote Vload %t0
+             _8 = Quote Call @time
 
-           _b = Quote Vload %t1
+             _9 = Quote Vstore %t1 _4
 
-           _c = Quote Sub _a _b
+             ...
 
-           ...
+             _a = Quote Vload %t0
 
-           _x = Quote Vload %val
+             _b = Quote Vload %t1
 
-           _y = Quote Begin _1 _2 _3 ... _a ... _x
+             _c = Quote Sub _a _b
 
-           Ret _y
+             ...
+
+             _x = Quote Vload %val
+
+             _y = Quote Begin _1 _2 _3 ... _a ... _x
+
+             Ret _y
 
            end
 
