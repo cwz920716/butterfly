@@ -13,7 +13,7 @@ This IR is scripting-complete, i.e., it can be used to construct any scripting l
 The code name of this IR is undefined yet, but here is what I am thinking of: *Lightning*, *ColdSteel*, *Azure*, *Trails*, etc.
 
 Basics
-~~~~~~
+------
 
 we will show some basic concepts through examples. More explanation will be introduced later gradually. The example will be shown in LISP first and then translate to IR.
 
@@ -116,7 +116,7 @@ Example 5: (define (make-withdraw balance) (lambda (amount) (set! balance (- bal
 
              Label L0
 
-             _1 = Closure @lambda-gensym1 %%env
+             _1 = Closure @lambda-gensym1 %%self
 
              Ret _1
 
@@ -193,5 +193,12 @@ Example 8: macro time(ex) local t0 = time() local val = $ex local t1 = time() [t
            
 
 Definitions
-~~~~~~~~~~~
+-----------
+
+By design, this IR is to resemble LLVM IR as much as possible. However, there are certain differences that you have already noticed, like there is no types, closures and macros, etc. So here, we give an overview of how this IR is defined.
+
+In high level, this is a modular system just like LLVM. A IR module can be mapped to a file in a non-modular scripting language or a module in a modular language. For now, we assume there is only one module since the details of IR module is not-designed-yet.
+
+There are four primitives can live in a module, a global variable, a function, a closure and a macro. We will describe all of them later. Just like LLVM, all global names are named after @.
+
 
