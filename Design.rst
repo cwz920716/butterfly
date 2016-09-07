@@ -19,61 +19,61 @@ we will show some basic concepts through examples. More explanation will be intr
 
 Example 1: (+ 1 2)
 
-           _1 = Int 1
+           %1 = Int 1
 
-           _2 = Int 2
+           %2 = Int 2
 
-           _3 = Add _1 _2
+           %3 = Add %1 %2
 
 Example 2: (* (+ 1 1) (1.0 / 2))
 
-           _1 = Int 1
+           %1 = Int 1
 
-           _2 = Int 1
+           %2 = Int 1
 
-           _3 = Add _1 _2
+           %3 = Add %1 %2
 
-           _4 = Float 1.0
+           %4 = Float 1.0
 
-           _5 = Int 2
+           %5 = Int 2
 
-           _6 = Div _4 _5
+           %6 = Div %4 %5
 
-           _7 = Mult _3 _6
+           %7 = Mult %3 %6
 
 Example 3: (define a 10) (if (< a 0) -a a)
 
            Vdefine %a
 
-           _1 = Int 10
+           %1 = Int 10
 
-           Vstore %a _1
+           Vstore %a %1
 
-           _2 = Vload %a
+           %2 = Vload %a
 
-           _3 = Int 0
+           %3 = Int 0
 
-           _4 = Lt _2 _3
+           %4 = Lt %2 %3
 
-           If _4 then L1 else L2
+           If %4 then L1 else L2
 
            Lable L1
 
-           _5 = Vload %a
+           %5 = Vload %a
 
-           _6 = Neg %a
+           %6 = Neg %a
 
            Goto L3
 
            Lable L2
 
-           _7 = Vload %a
+           %7 = Vload %a
 
            Goto L3
 
            Label L3
 
-           _8 = Phi _6 from L1 or _7 from L2
+           %8 = Phi %6 from L1 or %7 from L2
            
 Example 4: (define (square x) (* x x))
 
@@ -81,13 +81,13 @@ Example 4: (define (square x) (* x x))
 
              Label L0
 
-             _1 = Vload %x
+             %1 = Vload %x
 
-             _2 = Vload %x
+             %2 = Vload %x
 
-             _3 = Mult _1 _2
+             %3 = Mult %1 %2
  
-             Ret _3
+             Ret %3
 
            end
 
@@ -98,17 +98,17 @@ Example 5: (define (make-withdraw balance) (lambda (amount) (set! balance (- bal
 
              Label L0
 
-             _1 = Vload.c %balance %%self
+             %1 = Vload.c %balance %%self
 
-             _2 = Vload %amount
+             %2 = Vload %amount
 
-             _3 = Sub _1 _2
+             %3 = Sub %1 %2
 
-             VStore.c %balance %%self _3
+             VStore.c %balance %%self %3
 
-             _4 = Vload.c %balance %%self
+             %4 = Vload.c %balance %%self
 
-             Ret _4
+             Ret %4
 
            end
 
@@ -116,35 +116,35 @@ Example 5: (define (make-withdraw balance) (lambda (amount) (set! balance (- bal
 
              Label L0
 
-             _1 = Closure @lambda-gensym1 %%self
+             %1 = Closure @lambda-gensym1 %%self
 
-             Ret _1
+             Ret %1
 
            end
 
 Example 6: ex = :(a + b); eval(ex)
 
-           _1 = Quote Vload a
+           %1 = Quote Vload a
 
-           _2 = Quote Vload b
+           %2 = Quote Vload b
 
-           _3 = Quote Add _1 _2
+           %3 = Quote Add %1 %2
 
-           _4 = Eval _3
+           %4 = Eval %3
 
 Example 7: (define arguments '(10 50 100)) (apply + arguments)
 
-           _1 = Int 10
+           %1 = Int 10
 
-           _2 = Int 50
+           %2 = Int 50
 
-           _3 = Int 100
+           %3 = Int 100
 
-           _4 = Call @list _1 _2 _3 
+           %4 = Call @list %1 %2 %3 
 
-           _5 = Vload @@plus
+           %5 = Vload @+
 
-           Apply _5 _4
+           %6 = Apply %5 %4
 
            Note: this example used two feature that is not-yet-designed, "variable arguments" and "operator as function", the intuition of this example is to introduce apply instruction.
 
@@ -154,39 +154,39 @@ Example 8: macro time(ex) local t0 = time() local val = $ex local t1 = time() [t
 
              Label L0
 
-             _1 = Quote Vdefine %t0
+             %1 = Quote Vdefine %t0
 
-             _2 = Quote Call @time
+             %2 = Quote Call @time
 
-             _3 = Quote Vstore %t0 _1
+             %3 = Quote Vstore %t0 %1
 
-             _4 = Quote Vdefine %val
+             %4 = Quote Vdefine %val
 
-             _5 = Vload %ex
+             %5 = Vload %ex
 
-             _6 = Quote Vstore %val _5
+             %6 = Quote Vstore %val %5
 
-             _7 = Quote Vdefine %t1
+             %7 = Quote Vdefine %t1
 
-             _8 = Quote Call @time
+             %8 = Quote Call @time
 
-             _9 = Quote Vstore %t1 _4
-
-             ...
-
-             _a = Quote Vload %t0
-
-             _b = Quote Vload %t1
-
-             _c = Quote Sub _a _b
+             %9 = Quote Vstore %t1 %4
 
              ...
 
-             _x = Quote Vload %val
+             %a = Quote Vload %t0
 
-             _y = Quote Begin _1 _2 _3 ... _a ... _x
+             %b = Quote Vload %t1
 
-             Ret _y
+             %c = Quote Sub %a %b
+
+             ...
+
+             %x = Quote Vload %val
+
+             %y = Quote Begin %1 %2 %3 ... %a ... %x
+
+             Ret %y
 
            end
 
@@ -201,4 +201,21 @@ In high level, this is a modular system just like LLVM. A IR module can be mappe
 
 There are four primitives can live in a module, a global variable, a function, a closure and a macro. We will describe all of them later. Just like LLVM, all global names are named after @.
 
+Fornow, we focus on functions. As in LLVM, functions are constructed from a graph of basic blocks. A basic block started with a Label instruction (unlike LLVM), and ends with either a) Ret instruction, b) Goto instruction, and c) If instruction. Within basic blocks there are a few compute/read/write instructions. Let's look at them in order.
+
+Label instruction accepts a integer starting at 0 as its label, with 0 indicating entry label. In our example, we use L0, L1, ... to represent a label. Usually label won't be mapped to any ISA instruction, but it may help to have a IR instruction for label since we may need *jump threading*.
+
+As you have notice, we have a lot of familiar instructions such as Add/Sub/Mult, etc. We also have LLVM-like Single Static Assignment Values returned by instructions. However, there are a few differences:
+
+1. all our varaibles are polymorphic/dynamic typed, no type checking is required by almost all instructions
+
+2. Unlike LLVM, Arithmetic-like instructions, (i.e., Add, Sub, And, even If), never directly operate on named varible (like %x, %y) nor literal constants. In LLVM, you may have instructions such as Add %a %b, where both a and b are local variables in C/C++. However, it is impossible in our IR. You must using Vload first to load the local variable and then add the returned value from Vload instructions. Read Example 3.
+
+Before we introduce why wehave such restrictions, we first differentiate two types local variable names in our IR. The first type has a symbolic name such as 'a', 't0', 't1', andthey can be one-to-one mapped to the local variable in original languages (LISP). The second is numbered name such as %1 %2, etc., they are always returned by some instruction and strict SSA, you never assign to any numbered name. We refer to first type of name as 'variable', since they reflect scripting developers view of variable. The second type is called 'slot', meaning they are just temporaily hold variables and stored somewhere, butdoes not have a name. 
+
+The key difference of slot and variable is that slot is not scripting developer visible and strict SSA. A slot may reflect a temporal value of a sub expression in a scripting language statements. Also, any variable must be convert to slot (through Vload) and then can be used in arithmetic instructions.
+
+But why we must convert a variableto a slot and then operate on that slot in our IR? The reason is because our IR supports eval, hence new variables can be introduced or modified at runtime. Hence a variable access is more than a simple stack read in static languages. As a result, explicit variable access may enable more IR level optimization oppurtunities compared with implicit variable access.
+
+Hence, in our IR, a variable is mimic to a memory location in LLVM so we have instructions such as Vload, Vstore and Vdefine. These three instructions will modify the evaluation environment hence may incur complicated operations in the interpreter runtime.
 
