@@ -1,5 +1,7 @@
 # butterfly
 
+Note: This project is temporarily halted after I have a semi-working prototype (without GC support). It is halted since I do not have the time to mantain multiple side projects simultaneously.
+
 High Level Objectives:
 
 1. Butterfly is an experiment for High-Performance Scripting Language, in which I'll explore language design space for future high performance application, like deep learning
